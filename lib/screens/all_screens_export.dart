@@ -1,0 +1,10 @@
+export 'auth/change_password.dart';
+export 'auth/login_screen.dart';
+export 'auth/forgot_password.dart';
+export 'auth/sign_up_screen.dart';
+export 'dashboard/dashboard_screen.dart';
+export 'dashboard/notifications_screen.dart';
+export 'dashboard/statistics_screen.dart';
+export 'students/students_screen.dart';
+export 'finance/finance_screen.dart';
+export 'settings/settings_screen.dart';
