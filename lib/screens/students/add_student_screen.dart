@@ -2,48 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:legend/constants/app_constants.dart';
+import 'package:legend/constants/app_strings.dart';
 import 'package:legend/screens/utils/subject_selector_field.dart';
-
-// -----------------------------------------------------------------------------
-// VIEW MODEL (Updated)
-// -----------------------------------------------------------------------------
-class AddStudentViewModel {
-  // Dropdown Data Sources
-  final List<String> grades = ['Form 1', 'Form 2', 'Form 3', 'Form 4', 'Lower 6', 'Upper 6'];
-  final List<String> billingTypes = ['Standard Termly', 'Monthly (Fixed)', 'Monthly (Custom Date)'];
-  
-  // Form Controllers
-  final TextEditingController firstNameCtrl = TextEditingController();
-  final TextEditingController lastNameCtrl = TextEditingController();
-  // Removed admNumberCtrl (Auto-generated)
-  final TextEditingController guardianNameCtrl = TextEditingController();
-  final TextEditingController guardianPhoneCtrl = TextEditingController();
-  
-  // Financial Controllers
-  final TextEditingController openingBalanceCtrl = TextEditingController();
-  final TextEditingController debtDescriptionCtrl = TextEditingController(text: "Balance Brought Forward");
-
-  // Form State
-  String? selectedGrade;
-  String? selectedGender;
-  String selectedStudentType = 'ACADEMY'; 
-  String? selectedBillingCycle;
-  bool generateInvoiceNow = true;
-  DateTime? customBillingDate;
-  
-  // Subject List
-  List<String> selectedSubjects = []; 
-
-  void dispose() {
-    firstNameCtrl.dispose();
-    lastNameCtrl.dispose();
-    // admNumberCtrl.dispose(); 
-    guardianNameCtrl.dispose();
-    guardianPhoneCtrl.dispose();
-    openingBalanceCtrl.dispose();
-    debtDescriptionCtrl.dispose();
-  }
-}
+import 'package:legend/vmodels/add_student_view_model.dart';
 
 // -----------------------------------------------------------------------------
 // SCREEN UI
@@ -80,10 +41,10 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
       
       // 4. HANDLE IMMEDIATE BILLING
 
-      debugPrint("Saving Subjects: ${_vm.selectedSubjects}");
+      debugPrint("${AppStrings.savingSubjects} ${_vm.selectedSubjects}");
       
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Student Registered Successfully (Mock)'), backgroundColor: AppColors.successGreen),
+        const SnackBar(content: Text(AppStrings.studentRegisterSuccess), backgroundColor: AppColors.successGreen),
       );
       context.pop(); 
     }
@@ -100,11 +61,11 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
           icon: const Icon(Icons.close, color: Colors.white),
           onPressed: () => context.pop(),
         ),
-        title: const Text('New Admission', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text(AppStrings.newAdmission, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         actions: [
           TextButton(
             onPressed: _handleSubmit,
-            child: const Text("SAVE", style: TextStyle(color: AppColors.primaryBlue, fontWeight: FontWeight.bold)),
+            child: const Text(AppStrings.save, style: TextStyle(color: AppColors.primaryBlue, fontWeight: FontWeight.bold)),
           )
         ],
       ),
@@ -118,7 +79,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
               // ---------------------------------------------------------------
               // 1. IDENTITY SECTION
               // ---------------------------------------------------------------
-              _buildSectionHeader("Identity"),
+              _buildSectionHeader(AppStrings.identity),
               _buildCard(
                 children: [
                   // Names
@@ -127,16 +88,16 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                       Expanded(
                         child: _buildTextField(
                           controller: _vm.firstNameCtrl,
-                          label: "First Name",
+                          label: AppStrings.fieldFirstName,//"First Name",
                           icon: Icons.person_outline,
-                          validator: (v) => v!.isEmpty ? "Required" : null,
+                          validator: (v) => v!.isEmpty ? AppStrings.required : null,//"Required" : null,
                         ),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
                         child: _buildTextField(
                           controller: _vm.lastNameCtrl,
-                          label: "Last Name",
+                          label: AppStrings.fieldLastName,//"Last Name",
                           icon: Icons.person_outline,
                         ),
                       ),
@@ -150,8 +111,8 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                       Expanded(
                         child: _buildDropdown(
                           value: _vm.selectedGender,
-                          items: ['Male', 'Female'],
-                          label: "Gender",
+                          items: [AppStrings.genderMale, AppStrings.gendermFemale],
+                          label: AppStrings.gender,
                           icon: Icons.wc,
                           onChanged: (val) => setState(() => _vm.selectedGender = val),
                         ),
@@ -160,8 +121,8 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                       Expanded(
                         child: _buildDropdown(
                           value: _vm.selectedStudentType,
-                          items: ['ACADEMY', 'PRIVATE'],
-                          label: "Student Type",
+                          items: [AppStrings.studentTypeAcademy, AppStrings.studentTypePrivate],
+                          label: AppStrings.studentType,
                           icon: Icons.category_outlined,
                           onChanged: (val) => setState(() => _vm.selectedStudentType = val!),
                         ),
@@ -175,14 +136,14 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
               // ---------------------------------------------------------------
               // 2. ACADEMIC PLACEMENT
               // ---------------------------------------------------------------
-              _buildSectionHeader("Placement"),
+              _buildSectionHeader(AppStrings.placement),
               _buildCard(
                 children: [
                   // Grade Level (Now Full Width since Type moved up)
                   _buildDropdown(
                     value: _vm.selectedGrade,
                     items: _vm.grades,
-                    label: "Grade Level",
+                    label: AppStrings.gLevel,
                     icon: Icons.school_outlined,
                     onChanged: (val) => setState(() => _vm.selectedGrade = val),
                   ),
@@ -203,12 +164,12 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
               // ---------------------------------------------------------------
               // 3. GUARDIAN CONTACT
               // ---------------------------------------------------------------
-              _buildSectionHeader("Guardian Contact"),
+              _buildSectionHeader(AppStrings.gContact),
               _buildCard(
                 children: [
-                  _buildTextField(controller: _vm.guardianNameCtrl, label: "Guardian Name", icon: Icons.family_restroom),
+                  _buildTextField(controller: _vm.guardianNameCtrl, label: AppStrings.gName, icon: Icons.family_restroom),
                   const SizedBox(height: 16),
-                  _buildTextField(controller: _vm.guardianPhoneCtrl, label: "Phone Number", icon: Icons.phone_outlined, inputType: TextInputType.phone),
+                  _buildTextField(controller: _vm.guardianPhoneCtrl, label: AppStrings.gPhone, icon: Icons.phone_outlined, inputType: TextInputType.phone),
                 ],
               ),
               const SizedBox(height: 24),
@@ -216,7 +177,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
               // ---------------------------------------------------------------
               // 4. FINANCIAL ESSENTIALS
               // ---------------------------------------------------------------
-              _buildSectionHeader("Billing Essentials"),
+              _buildSectionHeader(AppStrings.bEssentials),
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -230,15 +191,15 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                     _buildDropdown(
                       value: _vm.selectedBillingCycle,
                       items: _vm.billingTypes,
-                      label: "Billing Schedule",
+                      label: AppStrings.bSchedule,
                       icon: Icons.calendar_month_outlined,
                       onChanged: (val) => setState(() => _vm.selectedBillingCycle = val),
                     ),
-                    if (_vm.selectedBillingCycle == 'Monthly (Custom Date)') ...[
+                    if (_vm.selectedBillingCycle == AppStrings.defaultB) ...[
                       const SizedBox(height: 16),
                       _buildDatePicker(
                         context,
-                        label: "Select Billing Date",
+                        label: AppStrings.selectBDate,
                         selectedDate: _vm.customBillingDate,
                         onSelect: (date) => setState(() => _vm.customBillingDate = date),
                       ),
@@ -246,13 +207,13 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                     const SizedBox(height: 24),
                     const Divider(color: AppColors.surfaceLightGrey),
                     const SizedBox(height: 16),
-                    Text("PREVIOUS TUITION CHARGES", style: TextStyle(color: AppColors.errorRed.withAlpha(200), fontSize: 11, fontWeight: FontWeight.bold)),
+                    Text(AppStrings.prevTuition, style: TextStyle(color: AppColors.errorRed.withAlpha(200), fontSize: 11, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 12),
                     Row(
                       children: [
-                        Expanded(flex: 2, child: _buildTextField(controller: _vm.openingBalanceCtrl, label: "Amount (Owing)", icon: Icons.attach_money, inputType: const TextInputType.numberWithOptions(decimal: true), textColor: AppColors.errorRed)),
+                        Expanded(flex: 2, child: _buildTextField(controller: _vm.openingBalanceCtrl, label: AppStrings.amntOwing, icon: Icons.attach_money, inputType: const TextInputType.numberWithOptions(decimal: true), textColor: AppColors.errorRed)),
                         const SizedBox(width: 16),
-                        Expanded(flex: 3, child: _buildTextField(controller: _vm.debtDescriptionCtrl, label: "Description", icon: Icons.description_outlined)),
+                        Expanded(flex: 3, child: _buildTextField(controller: _vm.debtDescriptionCtrl, label: AppStrings.description, icon: Icons.description_outlined)),
                       ],
                     ),
                     const SizedBox(height: 24),
@@ -260,8 +221,8 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       activeThumbColor: AppColors.successGreen,
-                      title: const Text("Generate Current Invoice?", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-                      subtitle: const Text("Will apply standard fees immediately.", style: TextStyle(color: AppColors.textGrey, fontSize: 12)),
+                      title: const Text(AppStrings.generateInvoice, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                      subtitle: const Text(AppStrings.standardAction, style: TextStyle(color: AppColors.textGrey, fontSize: 12)),
                       value: _vm.generateInvoiceNow,
                       onChanged: (val) => setState(() => _vm.generateInvoiceNow = val),
                     ),
@@ -411,7 +372,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
             const SizedBox(width: 12),
             Text(
               selectedDate != null 
-                  ? DateFormat('MMM d, yyyy').format(selectedDate) 
+                  ? DateFormat(AppStrings.dateFormat).format(selectedDate) 
                   : label,
               style: TextStyle(
                 color: selectedDate != null ? Colors.white : AppColors.textGrey,

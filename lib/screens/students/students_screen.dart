@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:legend/constants/app_constants.dart';
+import 'package:legend/constants/app_strings.dart';
 import 'package:legend/models/students_models.dart';
-import 'package:legend/services/auth/auth_serv.dart';
+import 'package:legend/services/auth/auth.dart';
 import 'package:legend/vmodels/students_vmodel.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -67,12 +68,12 @@ class _StudentsScreenState extends State<StudentsScreen> {
               ),
               const SizedBox(height: 16),
               const Text(
-                'No active school found',
+                AppStrings.noActiveSchool,
                 style: TextStyle(color: Colors.white, fontSize: 18),
               ),
               const SizedBox(height: 8),
               const Text(
-                'Please log in again',
+                AppStrings.logInAgain,
                 style: TextStyle(color: AppColors.textGrey, fontSize: 14),
               ),
             ],
@@ -118,7 +119,7 @@ class _StudentsScreenState extends State<StudentsScreen> {
               centerTitle: true,
               automaticallyImplyLeading: false,
               title: const Text(
-                'Student Directory',
+                AppStrings.stuDir,
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 18,
@@ -129,9 +130,10 @@ class _StudentsScreenState extends State<StudentsScreen> {
                 IconButton(
                   icon: const Icon(Icons.tune, color: Colors.white),
                   onPressed: () {
+                    //TODO  make something for this
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('Filter coming soon'),
+                        content: Text(AppStrings.comingSoon),
                         backgroundColor: AppColors.surfaceLightGrey,
                       ),
                     );
@@ -148,7 +150,7 @@ class _StudentsScreenState extends State<StudentsScreen> {
               elevation: 4,
               icon: const Icon(Icons.person_add, color: Colors.white, size: 20),
               label: const Text(
-                'Add Student',
+                AppStrings.plusStudent,
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -174,7 +176,7 @@ class _StudentsScreenState extends State<StudentsScreen> {
                           controller: _searchController,
                           style: const TextStyle(color: Colors.white),
                           decoration: InputDecoration(
-                            hintText: 'Search name or admission number...',
+                            hintText: AppStrings.searchByName,
                             hintStyle: const TextStyle(
                               color: AppColors.textGrey,
                             ),
@@ -246,7 +248,7 @@ class _StudentsScreenState extends State<StudentsScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Text(
-                  "Outstanding Debt",
+                  AppStrings.outstanding,
                   style: TextStyle(
                     color: AppColors.textGrey,
                     fontSize: 12,
@@ -260,15 +262,15 @@ class _StudentsScreenState extends State<StudentsScreen> {
                     color: AppColors.errorRed,
                     fontSize: 26,
                     fontWeight: FontWeight.bold,
-                    fontFamily: 'JetBrains Mono', // Or default if not loaded
+                    fontFamily: AppStrings.fontFamily, // Or default if not loaded
                   ),
                 ),
                 const SizedBox(height: 16),
                 Row(
                   children: [
-                    _buildLegendDot(Colors.greenAccent, "Paid: $paidCount"),
+                    _buildLegendDot(Colors.greenAccent, "${AppStrings.paid} $paidCount"),
                     const SizedBox(width: 12),
-                    _buildLegendDot(AppColors.errorRed, "Owing: $owingCount"),
+                    _buildLegendDot(AppColors.errorRed, "${AppStrings.owing} $owingCount"),
                   ],
                 ),
               ],
@@ -335,7 +337,7 @@ class _StudentsScreenState extends State<StudentsScreen> {
           Icon(Icons.error_outline, size: 64, color: AppColors.errorRed),
           const SizedBox(height: 16),
           Text(
-            'Error loading students',
+            AppStrings.errLoadingStu,
             style: TextStyle(color: AppColors.textGrey, fontSize: 16),
           ),
           const SizedBox(height: 8),
@@ -347,7 +349,7 @@ class _StudentsScreenState extends State<StudentsScreen> {
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: () => _viewModel?.loadStudents(),
-            child: const Text('Retry'),
+            child: const Text(AppStrings.retry),
           ),
         ],
       ),
@@ -366,7 +368,7 @@ class _StudentsScreenState extends State<StudentsScreen> {
           ),
           const SizedBox(height: 16),
           const Text(
-            'No students found',
+            AppStrings.noStuFound,
             style: TextStyle(color: AppColors.textGrey, fontSize: 16),
           ),
         ],
@@ -423,7 +425,7 @@ class _StudentsScreenState extends State<StudentsScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${student.admissionNumber ?? 'No ADM'} • ${student.status.name}',
+                    '${student.admissionNumber ?? AppStrings.noStuId} • ${student.status.name}',
                     style: const TextStyle(
                       color: AppColors.textGrey,
                       fontSize: 12,
@@ -443,7 +445,7 @@ class _StudentsScreenState extends State<StudentsScreen> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                isPaidUp ? 'PAID' : '-\$${balance.toStringAsFixed(0)}',
+                isPaidUp ? AppStrings.paid.toUpperCase() : '-\$${balance.toStringAsFixed(0)}',
                 style: TextStyle(
                   color: isPaidUp ? Colors.greenAccent : AppColors.errorRed,
                   fontWeight: FontWeight.bold,

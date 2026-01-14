@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:legend/models/legend.dart';
-import 'package:legend/repo/auth/auth_repo.dart';
+import 'package:legend/repo/auth/auth.dart';
 import 'package:legend/repo/auth/school_repo.dart';
 import 'package:legend/services/database_serv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -33,20 +33,20 @@ class AuthService extends ChangeNotifier {
         if (_activeSchool != null) {
           // 3. Connect PowerSync to school (start syncing data)
           debugPrint(
-            "🔌 Connecting PowerSync to school: ${_activeSchool!.name}",
+            "Connecting PowerSync to school: ${_activeSchool!.name}",
           );
           await DatabaseService().connectToSchool(_activeSchool!.id);
-          debugPrint("✅ PowerSync connected & syncing");
+          debugPrint("PowerSync connected & syncing");
 
           // 4. Wait briefly for initial sync to start
           await Future.delayed(const Duration(milliseconds: 500));
-          debugPrint("✅ Initial sync window completed");
+          debugPrint("Initial sync window completed");
         }
 
         // 5. Notify app that we are fully ready
         notifyListeners();
       } catch (e) {
-        debugPrint("❌ Auth successful, but setup failed: $e");
+        debugPrint("Auth successful, but setup failed: $e");
         rethrow;
       }
     }

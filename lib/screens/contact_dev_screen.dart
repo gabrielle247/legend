@@ -104,7 +104,7 @@ class _ContactDevScreenState extends State<ContactDevScreen> with SingleTickerPr
 
                   // --- THE TITLE ---
                   const Text(
-                    "THE ARCHITECT",
+                    "Nyasha Gabriel",
                     style: TextStyle(
                       fontFamily: 'monospace', // Or JetBrains Mono if available
                       fontSize: 24,
@@ -118,7 +118,7 @@ class _ContactDevScreenState extends State<ContactDevScreen> with SingleTickerPr
                   
                   // --- THE SUBTITLE ---
                   Text(
-                    "System behaving unexpectedly?\nNeed a feature injection?\nInitiate protocol.",
+                    "Contact the developer when ever the app \nmisbehaves so that data can be preserved \nand a solution can be found",
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 14,
@@ -136,7 +136,7 @@ class _ContactDevScreenState extends State<ContactDevScreen> with SingleTickerPr
                     label: "WHATSAPP UPLINK",
                     icon: Icons.chat_bubble_outline,
                     color: const Color(0xFF25D366),
-                    onTap: () => _launch("https://wa.me/263771234567"), // Replace with your number
+                    onTap: () => _launch("https://wa.me/263785930886"), 
                   ),
                   
                   const SizedBox(height: 20),
@@ -146,18 +146,19 @@ class _ContactDevScreenState extends State<ContactDevScreen> with SingleTickerPr
                     label: "SEND PAYLOAD (EMAIL)",
                     icon: Icons.alternate_email,
                     color: AppColors.primaryBlue,
-                    onTap: () => _launch("mailto:dev@greyway.co"), // Replace with your email
+                    onTap: () => _launch("mailto:gabwixgamesite2024@gmail.com"), // Replace with your email
                   ),
                   
                   const SizedBox(height: 40),
                   
                   // --- FOOTER ---
                   Text(
-                    "BUILD: ALPHA 0.9.2 // GREYWAY.CO",
+                    "BUILD: KWALEGEND \nALPHA 0.9.2",
+                    textAlign: TextAlign.center,
                     style: TextStyle(
                       fontFamily: 'monospace',
-                      fontSize: 10,
-                      color: Colors.white.withAlpha(50),
+                      fontSize: 14,
+                      color: Colors.white.withAlpha(133),
                     ),
                   ),
                 ],

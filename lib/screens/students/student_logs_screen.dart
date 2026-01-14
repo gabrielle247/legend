@@ -2,106 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:legend/constants/app_constants.dart';
-
-// =============================================================================
-// 1. DATA MODELS & ENUMS
-// =============================================================================
-enum LogType { financial, academic, system, alert }
-
-class LogEntry {
-  final String id;
-  final String title;
-  final String description;
-  final DateTime timestamp;
-  final LogType type;
-  final String performedBy; // "Admin", "System", "Guardian"
-
-  LogEntry({
-    required this.id,
-    required this.title,
-    required this.description,
-    required this.timestamp,
-    required this.type,
-    required this.performedBy,
-  });
-}
-
-// =============================================================================
-// 2. VIEW MODEL
-// =============================================================================
-class StudentLogsViewModel {
-  final String studentId;
-  List<LogEntry> logs = [];
-  bool isLoading = true;
-
-  StudentLogsViewModel(this.studentId);
-
-  Future<void> loadLogs() async {
-    // Simulate Network Delay
-    await Future.delayed(const Duration(milliseconds: 800));
-
-    final now = DateTime.now();
-    
-    // MOCK DATA: In production, fetch WHERE student_id = x ORDER BY created_at DESC
-    logs = [
-      LogEntry(
-        id: "1",
-        title: "Payment Received",
-        description: "Guardian paid \$450.00 via EcoCash (Ref: EC-9982).",
-        timestamp: now.subtract(const Duration(minutes: 45)),
-        type: LogType.financial,
-        performedBy: "System (Auto)",
-      ),
-      LogEntry(
-        id: "2",
-        title: "Invoice Generated",
-        description: "Term 1 2026 Tuition fees posted (\$600.00).",
-        timestamp: now.subtract(const Duration(hours: 3)),
-        type: LogType.financial,
-        performedBy: "Admin (Sir Legend)",
-      ),
-      LogEntry(
-        id: "3",
-        title: "Profile Updated",
-        description: "Guardian phone number changed from +263... to +263...",
-        timestamp: now.subtract(const Duration(days: 1, hours: 2)),
-        type: LogType.system,
-        performedBy: "Admin",
-      ),
-      LogEntry(
-        id: "4",
-        title: "Academic Warning",
-        description: "Missed 3 consecutive Math assignments.",
-        timestamp: now.subtract(const Duration(days: 2)),
-        type: LogType.alert,
-        performedBy: "Teacher (Mr. Moyo)",
-      ),
-      LogEntry(
-        id: "5",
-        title: "Subject Enrollment",
-        description: "Added to 'Computer Science' class list.",
-        timestamp: now.subtract(const Duration(days: 5)),
-        type: LogType.academic,
-        performedBy: "Admin",
-      ),
-      LogEntry(
-        id: "6",
-        title: "Admission Created",
-        description: "Student profile created and set to ACTIVE.",
-        timestamp: now.subtract(const Duration(days: 10)),
-        type: LogType.system,
-        performedBy: "Admin",
-      ),
-    ];
-    
-    isLoading = false;
-  }
-}
+import 'package:legend/constants/app_strings.dart';
+import 'package:legend/models/log_entry.dart';
+import 'package:legend/models/log_type.dart';
+import 'package:legend/vmodels/student_logs_view_model.dart';
 
 // =============================================================================
 // 3. SCREEN IMPLEMENTATION
 // =============================================================================
 class StudentLogsScreen extends StatefulWidget {
+  //TODO Using real data here
   final String? studentId;
 
   const StudentLogsScreen({super.key, this.studentId});
@@ -112,12 +22,12 @@ class StudentLogsScreen extends StatefulWidget {
 
 class _StudentLogsScreenState extends State<StudentLogsScreen> {
   late StudentLogsViewModel _vm;
-  String _filter = "All"; // "All", "Financial", "System"
+  String _filter = AppStrings.strNew; // "All", "Financial", "System"
 
   @override
   void initState() {
     super.initState();
-    _vm = StudentLogsViewModel(widget.studentId ?? "000");
+    _vm = StudentLogsViewModel(widget.studentId ?? AppStrings.exampleStuId);
     _initLoad();
   }
 
@@ -128,10 +38,16 @@ class _StudentLogsScreenState extends State<StudentLogsScreen> {
 
   // Filter Logic
   List<LogEntry> get _filteredLogs {
-    if (_filter == "All") return _vm.logs;
-    if (_filter == "Financial") return _vm.logs.where((l) => l.type == LogType.financial).toList();
-    if (_filter == "System") return _vm.logs.where((l) => l.type == LogType.system).toList();
-    if (_filter == "Alerts") return _vm.logs.where((l) => l.type == LogType.alert).toList();
+    if (_filter == AppStrings.strNew) return _vm.logs;
+    if (_filter == AppStrings.logsF) {
+      return _vm.logs.where((l) => l.type == LogType.financial).toList();
+    }
+    if (_filter == AppStrings.logsS) {
+      return _vm.logs.where((l) => l.type == LogType.system).toList();
+    }
+    if (_filter == AppStrings.logsA) {
+      return _vm.logs.where((l) => l.type == LogType.alert).toList();
+    }
     return _vm.logs;
   }
 
@@ -148,38 +64,49 @@ class _StudentLogsScreenState extends State<StudentLogsScreen> {
           onPressed: () => context.pop(),
         ),
         title: const Text(
-          "Activity History",
+          AppStrings.activityHistory,
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.download_outlined, color: AppColors.primaryBlue),
-            tooltip: "Export Logs",
+            icon: const Icon(
+              Icons.download_outlined,
+              color: AppColors.primaryBlue,
+            ),
+            tooltip: AppStrings.exportLogs,
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Exporting audit trail to CSV..."), backgroundColor: AppColors.surfaceLightGrey),
+                const SnackBar(
+                  content: Text(AppStrings.actionMessageExporting),
+                  backgroundColor: AppColors.surfaceLightGrey,
+                ),
               );
             },
           ),
         ],
       ),
       body: _vm.isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primaryBlue))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.primaryBlue),
+            )
           : Column(
               children: [
                 // 1. FILTER CHIPS
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
                   child: Row(
                     children: [
-                      _buildFilterChip("All"),
+                      _buildFilterChip(AppStrings.strAll),
                       const SizedBox(width: 8),
-                      _buildFilterChip("Financial"),
+                      _buildFilterChip(AppStrings.logsF),
                       const SizedBox(width: 8),
-                      _buildFilterChip("System"),
+                      _buildFilterChip(AppStrings.logsS),
                       const SizedBox(width: 8),
-                      _buildFilterChip("Alerts"),
+                      _buildFilterChip(AppStrings.logsA),
                     ],
                   ),
                 ),
@@ -189,7 +116,10 @@ class _StudentLogsScreenState extends State<StudentLogsScreen> {
                   child: _filteredLogs.isEmpty
                       ? _buildEmptyState()
                       : ListView.builder(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
                           itemCount: _filteredLogs.length,
                           itemBuilder: (context, index) {
                             final log = _filteredLogs[index];
@@ -221,7 +151,11 @@ class _StudentLogsScreenState extends State<StudentLogsScreen> {
       ),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: isSelected ? Colors.transparent : AppColors.surfaceLightGrey.withAlpha(50)),
+        side: BorderSide(
+          color: isSelected
+              ? Colors.transparent
+              : AppColors.surfaceLightGrey.withAlpha(50),
+        ),
       ),
     );
   }
@@ -260,17 +194,28 @@ class _StudentLogsScreenState extends State<StudentLogsScreen> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  DateFormat('MMM').format(log.timestamp).toUpperCase(),
-                  style: const TextStyle(color: AppColors.textGrey, fontSize: 10, fontWeight: FontWeight.bold),
+                  DateFormat(AppStrings.mmm).format(log.timestamp).toUpperCase(),
+                  style: const TextStyle(
+                    color: AppColors.textGrey,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 Text(
-                  DateFormat('dd').format(log.timestamp),
-                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  DateFormat(AppStrings.dd).format(log.timestamp),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  DateFormat('HH:mm').format(log.timestamp),
-                  style: TextStyle(color: AppColors.textGrey.withAlpha(150), fontSize: 10),
+                  DateFormat(AppStrings.hhmm).format(log.timestamp),
+                  style: TextStyle(
+                    color: AppColors.textGrey.withAlpha(150),
+                    fontSize: 10,
+                  ),
                 ),
               ],
             ),
@@ -291,9 +236,12 @@ class _StudentLogsScreenState extends State<StudentLogsScreen> {
                 ),
                 child: Center(
                   child: Container(
-                    width: 4, 
-                    height: 4, 
-                    decoration: BoxDecoration(color: typeColor, shape: BoxShape.circle),
+                    width: 4,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: typeColor,
+                      shape: BoxShape.circle,
+                    ),
                   ),
                 ),
               ),
@@ -318,7 +266,9 @@ class _StudentLogsScreenState extends State<StudentLogsScreen> {
                 decoration: BoxDecoration(
                   color: AppColors.surfaceDarkGrey,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(20)),
+                  border: Border.all(
+                    color: AppColors.surfaceLightGrey.withAlpha(20),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -329,23 +279,38 @@ class _StudentLogsScreenState extends State<StudentLogsScreen> {
                         const SizedBox(width: 6),
                         Text(
                           log.title,
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 6),
                     Text(
                       log.description,
-                      style: const TextStyle(color: AppColors.textGrey, fontSize: 12, height: 1.4),
+                      style: const TextStyle(
+                        color: AppColors.textGrey,
+                        fontSize: 12,
+                        height: 1.4,
+                      ),
                     ),
                     const SizedBox(height: 10),
                     Row(
                       children: [
-                        const Icon(Icons.person_outline, size: 12, color: AppColors.textGrey),
+                        const Icon(
+                          Icons.person_outline,
+                          size: 12,
+                          color: AppColors.textGrey,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           "By: ${log.performedBy}",
-                          style: TextStyle(color: AppColors.textGrey.withAlpha(150), fontSize: 10),
+                          style: TextStyle(
+                            color: AppColors.textGrey.withAlpha(150),
+                            fontSize: 10,
+                          ),
                         ),
                       ],
                     ),
@@ -366,7 +331,7 @@ class _StudentLogsScreenState extends State<StudentLogsScreen> {
         children: [
           Icon(Icons.history_toggle_off, size: 48, color: AppColors.textGrey),
           SizedBox(height: 16),
-          Text("No logs found", style: TextStyle(color: AppColors.textGrey)),
+          Text(AppStrings.errLogsNotFound, style: TextStyle(color: AppColors.textGrey)),
         ],
       ),
     );

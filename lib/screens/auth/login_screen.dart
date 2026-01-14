@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:legend/constants/app_constants.dart';
-import 'package:legend/services/auth/auth_serv.dart';
+import 'package:legend/services/auth/auth.dart';
 import 'package:provider/provider.dart';
 
 class LoginScreen extends StatefulWidget {

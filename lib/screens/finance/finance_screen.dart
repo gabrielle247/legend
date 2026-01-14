@@ -575,6 +575,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildTransactionCard({
     required String name,
     required String description,

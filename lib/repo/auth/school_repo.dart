@@ -19,7 +19,7 @@ class SchoolRepository {
   /// --------------------------------------------------------------------------
   Future<SchoolConfig> getSchoolForUser(String userId) async {
     try {
-      debugPrint("🔍 (1/2) Checking Staff Profile for: $userId");
+      debugPrint("(1/2) Checking Staff Profile for: $userId");
 
       // STEP 1: Check the 'profiles' table to see which school this user belongs to.
       // This works because we added the 'Users manage own profile' policy.
@@ -35,12 +35,12 @@ class SchoolRepository {
       }
 
       if (profileResponse['school_id'] == null) {
-        debugPrint("❌ User exists but is not linked to a school.");
+        debugPrint("User exists but is not linked to a school.");
         throw SchoolException("You are not linked to any school. Contact Admin.");
       }
 
       final String schoolId = profileResponse['school_id'];
-      debugPrint("✅ (1/2) Staff confirmed for School ID: $schoolId");
+      debugPrint("(1/2) Staff confirmed for School ID: $schoolId");
 
       // STEP 2: Fetch the School Config using the found ID.
       // This works because of the 'Staff access school config' policy.
@@ -55,15 +55,15 @@ class SchoolRepository {
         throw SchoolException("Critical: Linked school configuration is missing.");
       }
       
-      debugPrint("✅ (2/2) School '${configResponse['school_name']}' Loaded.");
+      debugPrint("(2/2) School '${configResponse['school_name']}' Loaded.");
 
       return SchoolConfig.fromJson(configResponse);
 
     } on PostgrestException catch (e) {
-      debugPrint("🔥 DB ERROR: ${e.message} (Code: ${e.code})");
+      debugPrint("DB ERROR: ${e.message} (Code: ${e.code})");
       throw SchoolException("Database Access Error: ${e.message}");
     } catch (e) {
-      debugPrint("💥 SYSTEM ERROR: $e");
+      debugPrint("SYSTEM ERROR: $e");
       throw SchoolException("System failure during school fetch.");
     }
   }

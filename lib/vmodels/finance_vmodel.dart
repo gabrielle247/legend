@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:legend/models/billing_models.dart';
-import 'package:legend/services/auth/auth_serv.dart';
+import 'package:legend/services/auth/auth.dart';
 import 'package:legend/vmodels/students_vmodel.dart';
 
 // =============================================================================

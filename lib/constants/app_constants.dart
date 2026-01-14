@@ -25,28 +25,6 @@ class AppColors {
 }
 
 // -----------------------------------------------------------------------------
-// APP STRINGS
-// -----------------------------------------------------------------------------
-class AppStrings {
-  static const String appName = "KwaLegend Manager";
-  
-  // Shell Titles
-  static const String dashboardTitle = "Dashboard";
-  static const String studentsTitle = "Students";
-  static const String financeTitle = "Finance";
-  static const String settingsTitle = "Profile"; // Combined Settings/Profile for Sir Legend
-
-  // Screen Titles
-  static const String statsTitle = "Statistics";
-  static const String notificationsTitle = "Notifications";
-  static const String invoicesTitle = "Invoices";
-  static const String createInvoiceTitle = "New Invoice";
-  static const String logsTitle = "Activity Logs";
-  static const String tosTitle = "Terms of Service";
-  static const String contactDevTitle = "Contact Developer";
-}
-
-// -----------------------------------------------------------------------------
 // APP THEME
 // -----------------------------------------------------------------------------
 class AppTheme {

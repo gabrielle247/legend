@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_nav_bar/google_nav_bar.dart';
 import 'package:legend/constants/app_constants.dart';
+import 'package:legend/constants/app_strings.dart';
 import 'package:legend/screens/contact_dev_screen.dart';
 import 'package:legend/screens/settings/tos_screen.dart';
-import 'package:legend/services/auth/auth_serv.dart';
+import 'package:legend/services/auth/auth.dart';
 
 // Import Screens
 import 'package:legend/screens/all_screens_export.dart';

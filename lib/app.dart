@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:legend/services/auth/auth_serv.dart';
+import 'package:legend/services/auth/auth.dart';
 import 'package:provider/provider.dart';
 import 'app_router.dart';
 import 'constants/app_constants.dart';

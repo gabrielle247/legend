@@ -7,14 +7,14 @@ import 'package:legend/app_init.dart';
 import 'package:legend/app.dart';
 
 // 2. REPOSITORIES
-import 'package:legend/repo/auth/auth_repo.dart';
+import 'package:legend/repo/auth/auth.dart';
 import 'package:legend/repo/auth/school_repo.dart';
 import 'package:legend/repo/dashboard_repo.dart';
 import 'package:legend/vmodels/students_vmodel.dart'; // Contains PowerSyncStudentRepository
 import 'package:legend/vmodels/finance_vmodel.dart';  // Contains PowerSyncFinanceRepository
 
 // 3. SERVICES & VIEW MODELS
-import 'package:legend/services/auth/auth_serv.dart';
+import 'package:legend/services/auth/auth.dart';
 import 'package:legend/vmodels/settings_vmodel.dart';
 
 void main() async {

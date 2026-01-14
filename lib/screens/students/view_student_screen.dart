@@ -3,54 +3,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:legend/constants/app_constants.dart';
+import 'package:legend/constants/app_strings.dart';
 import 'package:legend/models/students_models.dart';
-import 'package:legend/services/auth/auth_serv.dart';
+import 'package:legend/services/auth/auth.dart';
 import 'package:legend/vmodels/students_vmodel.dart';
 import 'package:provider/provider.dart';
 
-// =============================================================================
-// 1. LOCAL STRINGS & CONSTANTS
-// =============================================================================
-class _ViewStrings {
-  static const String pageTitle = "Student Profile";
-
-  // Status Labels
-  static const String statusActive = "ACTIVE";
-  static const String statusArrears = "ARREARS";
-
-  // Tabs
-  static const String tabOverview = "Overview";
-  static const String tabFinance = "Finance";
-  static const String tabAcademic = "Academic";
-
-  // Actions
-  static const String actCall = "Call Guardian";
-  static const String actWhatsApp = "WhatsApp";
-  static const String actLogPayment = "Log Payment";
-
-  // Section Headers
-  static const String secIdentity = "Identity & Class";
-  static const String secGuardian = "Guardian / Payer";
-  static const String secSubjects = "Enrolled Subjects";
-  static const String secLedger = "Recent Transactions";
-
-  // Labels
-  static const String lblAdmNum = "ID";
-  static const String lblDob = "DOB";
-  static const String lblGender = "Gender";
-  static const String lblType = "Type";
-  static const String lblPhone = "Phone";
-  static const String lblRelation = "Relation";
-
-  // Finance
-  static const String lblOwed = "Outstanding Balance";
-  static const String lblPaid = "Paid YTD";
-
-  // Fallbacks
-  static const String noSubjects = "No subjects registered";
-  static const String loading = "Loading student profile...";
-  static const String error = "Could not load student data.";
-}
 
 // =============================================================================
 // 3. SCREEN IMPLEMENTATION
@@ -157,7 +115,7 @@ class _ViewStudentScreenState extends State<ViewStudentScreen>
               appBar: AppBar(backgroundColor: AppColors.backgroundBlack),
               body: Center(
                 child: Text(
-                  vm.error ?? _ViewStrings.error,
+                  vm.error ?? AppStrings.error,
                   style: const TextStyle(color: Colors.white),
                 ),
               ),
@@ -208,9 +166,9 @@ class _ViewStudentScreenState extends State<ViewStudentScreen>
                       unselectedLabelColor: AppColors.textGrey,
                       labelStyle: const TextStyle(fontWeight: FontWeight.bold),
                       tabs: const [
-                        Tab(text: _ViewStrings.tabOverview),
-                        Tab(text: _ViewStrings.tabFinance),
-                        Tab(text: _ViewStrings.tabAcademic),
+                        Tab(text: AppStrings.tabOverview),
+                        Tab(text: AppStrings.tabFinance),
+                        Tab(text: AppStrings.tabAcademic),
                       ],
                     ),
                   ),
@@ -234,7 +192,7 @@ class _ViewStudentScreenState extends State<ViewStudentScreen>
               backgroundColor: AppColors.successGreen,
               icon: const Icon(Icons.receipt_long, color: Colors.white),
               label: const Text(
-                _ViewStrings.actLogPayment,
+                AppStrings.actLogPayment,
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -347,7 +305,7 @@ class _ViewStudentScreenState extends State<ViewStudentScreen>
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    "${_ViewStrings.lblAdmNum}: ${student.admissionNumber ?? 'N/A'}",
+                    "${AppStrings.lblAdmNum}: ${student.admissionNumber ?? 'N/A'}",
                     style: const TextStyle(
                       color: AppColors.textGrey,
                       fontFamily: 'monospace',
@@ -388,7 +346,7 @@ class _ViewStudentScreenState extends State<ViewStudentScreen>
               Expanded(
                 child: _buildActionButton(
                   icon: Icons.call_outlined,
-                  label: _ViewStrings.actCall,
+                  label: AppStrings.actCall,
                   onTap:
                       () {}, // launchUrl("tel:${student.guardianPhone ?? ''}"),
                 ),
@@ -397,7 +355,7 @@ class _ViewStudentScreenState extends State<ViewStudentScreen>
               Expanded(
                 child: _buildActionButton(
                   icon: Icons.message_outlined,
-                  label: _ViewStrings.actWhatsApp,
+                  label: AppStrings.actWhatsApp,
                   onTap: () {},
                   color: AppColors.successGreen,
                 ),
@@ -408,27 +366,27 @@ class _ViewStudentScreenState extends State<ViewStudentScreen>
           const SizedBox(height: 24),
 
           // Identity
-          _buildSectionHeader(_ViewStrings.secIdentity),
+          _buildSectionHeader(AppStrings.secIdentity),
           _buildInfoCard([
             _InfoRow(
-              _ViewStrings.lblDob,
+              AppStrings.lblDob,
               student.dob?.toString().split(' ')[0] ?? 'N/A',
             ),
-            _InfoRow(_ViewStrings.lblGender, student.gender ?? 'N/A'),
-            _InfoRow(_ViewStrings.lblType, _getTypeText(student.type)),
+            _InfoRow(AppStrings.lblGender, student.gender ?? 'N/A'),
+            _InfoRow(AppStrings.lblType, _getTypeText(student.type)),
           ]),
 
           const SizedBox(height: 24),
 
           // Guardian
-          _buildSectionHeader(_ViewStrings.secGuardian),
+          _buildSectionHeader(AppStrings.secGuardian),
           _buildInfoCard([
             _InfoRow(
-              _ViewStrings.lblRelation,
+              AppStrings.lblRelation,
               student.guardianRelationship ?? 'N/A',
             ),
             _InfoRow("Name", student.guardianName ?? 'N/A'),
-            _InfoRow(_ViewStrings.lblPhone, student.guardianPhone ?? 'N/A'),
+            _InfoRow(AppStrings.lblPhone, student.guardianPhone ?? 'N/A'),
           ]),
 
           const SizedBox(height: 80), // Fab space
@@ -468,7 +426,7 @@ class _ViewStudentScreenState extends State<ViewStudentScreen>
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      _ViewStrings.lblOwed,
+                      AppStrings.lblOwed,
                       style: TextStyle(color: Colors.white70, fontSize: 14),
                     ),
                     Text(
@@ -518,7 +476,7 @@ class _ViewStudentScreenState extends State<ViewStudentScreen>
           ),
 
           const SizedBox(height: 24),
-          _buildSectionHeader(_ViewStrings.secLedger),
+          _buildSectionHeader(AppStrings.secLedger),
 
           // 2. TRANSACTION LIST (Placeholder)
           const Center(

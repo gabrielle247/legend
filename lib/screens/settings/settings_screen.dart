@@ -1,39 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:legend/constants/app_constants.dart';
+import 'package:legend/constants/app_strings.dart';
 import 'package:legend/vmodels/settings_vmodel.dart';
 import 'package:provider/provider.dart';
 
-// -----------------------------------------------------------------------------
-// 1. LOCAL STRINGS & CONSTANTS (Strictly No UI String Literals)
-// -----------------------------------------------------------------------------
-class _ConfigStrings {
-  static const String pageTitle = "Profile & Settings";
-
-  // Sections
-  static const String secIdentity = "Identity";
-  static const String secApp = "Application";
-  static const String secData = "Data & Sync";
-  static const String secSupport = "Support";
-
-  // Items
-  static const String itemEditProfile = "Edit Profile";
-  static const String subEditProfile = "Update name and role";
-
-  static const String itemSchool = "School Details";
-  static const String subSchool = "Logo, address, and contact";
-
-  static const String itemTheme = "Dark Mode";
-  static const String itemNotifs = "Notifications";
-
-  static const String itemSync = "Sync Status";
-  static const String subSync = "Last synced: Just now";
-
-  static const String itemContactDev = "Contact Developer";
-  static const String subContactDev = "Report bugs or request features";
-
-  static const String itemLogout = "Log Out";
-}
 
 // -----------------------------------------------------------------------------
 // 2. SCREEN IMPLEMENTATION
@@ -69,7 +40,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             centerTitle: true,
             automaticallyImplyLeading: false, // Root tab
             title: const Text(
-              _ConfigStrings.pageTitle,
+              AppStrings.pageTitle,
               style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
@@ -89,13 +60,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 32),
 
                 // ================= SECTION 1: IDENTITY =================
-                _buildSectionHeader(_ConfigStrings.secIdentity),
+                _buildSectionHeader(AppStrings.secIdentity),
                 _buildSettingsTile(
                   context,
                   icon: Icons.person_outline,
-                  title: _ConfigStrings.itemEditProfile,
-                  subtitle: _ConfigStrings.subEditProfile,
+                  title: AppStrings.itemEditProfile,
+                  subtitle: AppStrings.subEditProfile,
                   onTap: () {
+                    //TODO Edit Profile Screen
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('Edit Profile coming soon'),
@@ -107,29 +79,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildSettingsTile(
                   context,
                   icon: Icons.business_outlined,
-                  title: _ConfigStrings.itemSchool,
-                  subtitle: _ConfigStrings.subSchool,
-                  onTap: () {
-                    // Navigate to School Edit Screen (Using createSchool route for now or new one)
-                    ScaffoldMessenger.of(context).showSnackBar(
+                  title: AppStrings.itemSchool,
+                  subtitle: AppStrings.subSchool,
+                  onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                    //TODO Edit School Screen
                       const SnackBar(
                         content: Text('Edit School Details coming soon'),
                         backgroundColor: AppColors.surfaceLightGrey,
                       ),
-                    );
-                  },
+                    ),
                 ),
 
                 const SizedBox(height: 24),
 
                 // ================= SECTION 2: APP SETTINGS =================
-                _buildSectionHeader(_ConfigStrings.secApp),
+                _buildSectionHeader(AppStrings.secApp),
 
                 // Dark Mode Switch
                 _buildSwitchTile(
                   context,
                   icon: Icons.dark_mode_outlined,
-                  title: _ConfigStrings.itemTheme,
+                  title: AppStrings.itemTheme,
                   value: viewModel.isDarkMode,
                   onChanged: (val) async {
                     await viewModel.toggleDarkMode();
@@ -142,7 +112,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildSwitchTile(
                   context,
                   icon: Icons.notifications_outlined,
-                  title: _ConfigStrings.itemNotifs,
+                  title: AppStrings.itemNotifs,
                   value: viewModel.pushNotifications,
                   onChanged: (val) async {
                     await viewModel.togglePushNotifications();
@@ -153,12 +123,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 24),
 
                 // ================= SECTION 3: DATA =================
-                _buildSectionHeader(_ConfigStrings.secData),
+                _buildSectionHeader(AppStrings.secData),
                 _buildSettingsTile(
                   context,
                   icon: Icons.sync,
-                  title: _ConfigStrings.itemSync,
-                  subtitle: _ConfigStrings.subSync,
+                  title: AppStrings.itemSync,
+                  subtitle: AppStrings.subSync,
                   trailing: const Icon(
                     Icons.check_circle,
                     color: AppColors.successGreen,
@@ -170,12 +140,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 24),
 
                 // ================= SECTION 4: SUPPORT =================
-                _buildSectionHeader(_ConfigStrings.secSupport),
+                _buildSectionHeader(AppStrings.secSupport),
                 _buildSettingsTile(
                   context,
                   icon: Icons.code,
-                  title: _ConfigStrings.itemContactDev,
-                  subtitle: _ConfigStrings.subContactDev,
+                  title: AppStrings.itemContactDev,
+                  subtitle: AppStrings.subContactDev,
                   onTap: () => context.push(
                     '${AppRoutes.settings}/${AppRoutes.contactDev}',
                   ),
@@ -193,7 +163,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     },
                     icon: const Icon(Icons.logout, color: AppColors.errorRed),
                     label: const Text(
-                      _ConfigStrings.itemLogout,
+                      AppStrings.itemLogout,
                       style: TextStyle(
                         color: AppColors.errorRed,
                         fontWeight: FontWeight.bold,
