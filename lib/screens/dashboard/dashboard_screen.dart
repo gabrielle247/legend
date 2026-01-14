@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:legend/constants/app_constants.dart';
 import 'package:legend/constants/app_strings.dart';
-import 'package:legend/models/legend.dart';
+import 'package:legend/models/all_models.dart';
 import 'package:legend/repo/dashboard_repo.dart';
 import 'package:legend/services/auth/auth.dart';
 import 'package:provider/provider.dart';

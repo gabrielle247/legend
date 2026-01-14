@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:legend/models/legend.dart';
+import 'package:legend/models/all_models.dart';
 import 'package:legend/repo/dashboard_repo.dart';
 import 'package:legend/services/auth/auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';

@@ -7,6 +7,7 @@ class TosScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    //TODO ensure that details here are not explicit but just a layer of legal staff to ensure thay compliance
     return Scaffold(
       backgroundColor: AppColors.backgroundBlack,
       appBar: AppBar(

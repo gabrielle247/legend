@@ -1,5 +1,9 @@
 import 'package:flutter/foundation.dart';
-import 'package:legend/models/billing_models.dart';
+import 'package:legend/models/invoice.dart';
+import 'package:legend/models/invoice_item.dart';
+import 'package:legend/models/invoice_status.dart';
+import 'package:legend/models/ledger_entry.dart';
+import 'package:legend/models/payment.dart';
 import 'package:legend/services/auth/auth.dart';
 import 'package:legend/vmodels/students_vmodel.dart';
 

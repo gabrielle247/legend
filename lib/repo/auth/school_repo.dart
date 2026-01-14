@@ -1,5 +1,5 @@
 import 'package:flutter/cupertino.dart';
-import 'package:legend/models/legend.dart'; // Ensure SchoolConfig is in here
+import 'package:legend/models/all_models.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SchoolException implements Exception {

@@ -17,7 +17,8 @@ class FinanceScreen extends StatefulWidget {
 }
 
 class _FinanceScreenState extends State<FinanceScreen> {
-  // STATE
+  //TODO Take all strings and putting them in AppStrings
+
   String _selectedTimeRange = 'Monthly';
 
   @override

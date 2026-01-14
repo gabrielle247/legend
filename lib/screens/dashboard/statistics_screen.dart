@@ -2,45 +2,11 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:legend/constants/app_constants.dart';
-import 'package:legend/models/legend.dart';
+import 'package:legend/models/all_models.dart';
 import 'package:legend/repo/dashboard_repo.dart';
 import 'package:legend/services/auth/auth.dart';
+import 'package:legend/vmodels/stats_view_model.dart';
 import 'package:provider/provider.dart';
-
-// -----------------------------------------------------------------------------
-// VIEW MODEL (Data Container)
-// -----------------------------------------------------------------------------
-class StatsViewModel {
-  final double totalRevenue;
-  final double outstandingDebt;
-  final int activeStudents;
-
-  // Chart Data
-  final List<FlSpot> revenueTrend;
-  final List<Map<String, dynamic>> debtByGrade;
-  final Map<String, double> paymentMethods;
-
-  StatsViewModel({
-    required this.totalRevenue,
-    required this.outstandingDebt,
-    required this.activeStudents,
-    required this.revenueTrend,
-    required this.debtByGrade,
-    required this.paymentMethods,
-  });
-
-  // Empty state to avoid null crashes if DB is empty
-  factory StatsViewModel.empty() {
-    return StatsViewModel(
-      totalRevenue: 0,
-      outstandingDebt: 0,
-      activeStudents: 0,
-      revenueTrend: [const FlSpot(0, 0)],
-      debtByGrade: [],
-      paymentMethods: {},
-    );
-  }
-}
 
 // -----------------------------------------------------------------------------
 // UI IMPLEMENTATION
@@ -166,7 +132,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
           }
 
           // 3. Data Ready
-          final _data = snapshot.data!;
+          final data = snapshot.data!;
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(20),
@@ -195,7 +161,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                     Expanded(
                       child: _buildKpiCard(
                         title: "Revenue (7 Days)",
-                        value: "\$${(_data.totalRevenue).toStringAsFixed(0)}",
+                        value: "\$${(data.totalRevenue).toStringAsFixed(0)}",
                         // Trend is removed because we need previous period data to calculate it truthfully
                         trend: "Real-time", 
                         isPositive: true,
@@ -206,7 +172,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                     Expanded(
                       child: _buildKpiCard(
                         title: "Total Outstanding",
-                        value: "\$${(_data.outstandingDebt / 1000).toStringAsFixed(1)}k",
+                        value: "\$${(data.outstandingDebt / 1000).toStringAsFixed(1)}k",
                         trend: "Unpaid Fees",
                         isPositive: false,
                         icon: Icons.warning_amber,
@@ -245,7 +211,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                       minY: 0,
                       lineBarsData: [
                         LineChartBarData(
-                          spots: _data.revenueTrend,
+                          spots: data.revenueTrend,
                           isCurved: true,
                           color: AppColors.primaryBlue,
                           barWidth: 3,
@@ -276,12 +242,12 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Column(
-                    children: _data.debtByGrade.isEmpty 
+                    children: data.debtByGrade.isEmpty 
                     ? [const Padding(padding: EdgeInsets.all(8.0), child: Text("No debt records found.", style: TextStyle(color: AppColors.textGrey)))]
-                    : _data.debtByGrade.map((item) {
+                    : data.debtByGrade.map((item) {
                         // Dynamic Max for Scaling Bars correctly
                         // Find max debt in the list to normalize the bar width
-                        final double maxDebtInList = _data.debtByGrade.fold(0.0, (prev, e) {
+                        final double maxDebtInList = data.debtByGrade.fold(0.0, (prev, e) {
                           final amt = (e['amount'] as num).toDouble();
                           return amt > prev ? amt : prev;
                         });

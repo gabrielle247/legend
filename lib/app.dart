@@ -1,8 +1,4 @@
-import 'package:flutter/material.dart';
-import 'package:legend/services/auth/auth.dart';
-import 'package:provider/provider.dart';
-import 'app_router.dart';
-import 'constants/app_constants.dart';
+import 'app_libs.dart';
 
 class KwaLegendApp extends StatefulWidget {
   const KwaLegendApp({super.key});

@@ -3,8 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:legend/constants/app_constants.dart';
 import 'package:legend/constants/app_strings.dart';
-import 'package:legend/models/log_entry.dart';
-import 'package:legend/models/log_type.dart';
+import 'package:legend/models/all_models.dart';
 import 'package:legend/vmodels/student_logs_view_model.dart';
 
 // =============================================================================

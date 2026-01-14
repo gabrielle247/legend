@@ -1,4 +1,3 @@
-export 'auth/change_password.dart';
 export 'auth/login_screen.dart';
 export 'auth/forgot_password.dart';
 export 'auth/sign_up_screen.dart';
@@ -8,3 +7,12 @@ export 'dashboard/statistics_screen.dart';
 export 'students/students_screen.dart';
 export 'finance/finance_screen.dart';
 export 'settings/settings_screen.dart';
+export 'package:legend/models/all_models.dart';
+export 'package:legend/screens/finance/create_invoice_screen.dart';
+export 'package:legend/screens/finance/record_payment_screen.dart';
+export 'package:legend/screens/finance/view_invoice_screen.dart';
+export 'package:legend/screens/students/add_student_screen.dart';
+export 'package:legend/screens/students/student_logs_screen.dart';
+export 'package:legend/screens/students/view_student_screen.dart';
+export 'package:legend/screens/contact_dev_screen.dart';
+export 'package:legend/screens/settings/tos_screen.dart';

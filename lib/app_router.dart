@@ -1,20 +1,4 @@
-import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:google_nav_bar/google_nav_bar.dart';
-import 'package:legend/constants/app_constants.dart';
-import 'package:legend/constants/app_strings.dart';
-import 'package:legend/screens/contact_dev_screen.dart';
-import 'package:legend/screens/settings/tos_screen.dart';
-import 'package:legend/services/auth/auth.dart';
-
-// Import Screens
-import 'package:legend/screens/all_screens_export.dart';
-import 'package:legend/screens/finance/create_invoice_screen.dart';
-import 'package:legend/screens/finance/record_payment_screen.dart';
-import 'package:legend/screens/finance/view_invoice_screen.dart';
-import 'package:legend/screens/students/add_student_screen.dart';
-import 'package:legend/screens/students/student_logs_screen.dart';
-import 'package:legend/screens/students/view_student_screen.dart';
+import 'app_libs.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
 

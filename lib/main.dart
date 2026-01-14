@@ -1,21 +1,4 @@
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-
-// 1. INIT & APP
-import 'package:legend/app_init.dart';
-import 'package:legend/app.dart';
-
-// 2. REPOSITORIES
-import 'package:legend/repo/auth/auth.dart';
-import 'package:legend/repo/auth/school_repo.dart';
-import 'package:legend/repo/dashboard_repo.dart';
-import 'package:legend/vmodels/students_vmodel.dart'; // Contains PowerSyncStudentRepository
-import 'package:legend/vmodels/finance_vmodel.dart';  // Contains PowerSyncFinanceRepository
-
-// 3. SERVICES & VIEW MODELS
-import 'package:legend/services/auth/auth.dart';
-import 'package:legend/vmodels/settings_vmodel.dart';
+import 'app_libs.dart';
 
 void main() async {
   // ---------------------------------------------------------------------------

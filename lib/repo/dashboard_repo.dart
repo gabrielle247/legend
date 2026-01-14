@@ -1,5 +1,5 @@
-import 'package:legend/models/legend.dart';
-import 'package:legend/models/additional_models.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:legend/models/all_models.dart';
 import 'package:legend/services/database_serv.dart'; // Access to global 'db'
 
 class DashboardRepository {
@@ -44,7 +44,7 @@ class DashboardRepository {
       );
     } catch (e) {
       // PowerSync tables might not be ready yet
-      print('Error fetching dashboard stats from PowerSync: $e');
+      debugPrint('Error fetching dashboard stats from PowerSync: $e');
       return DashboardStats(
         totalStudents: 0,
         pendingInvoices: 0,
@@ -100,7 +100,7 @@ class DashboardRepository {
       }).toList();
     } catch (e) {
       // PowerSync tables might not be ready yet
-      print('Error fetching recent activity from PowerSync: $e');
+      debugPrint('Error fetching recent activity from PowerSync: $e');
       return [];
     }
   }
@@ -219,7 +219,7 @@ class DashboardRepository {
       return null;
     } catch (e) {
       // PowerSync table might not exist yet or data is incomplete
-      print('Error fetching user profile from PowerSync: $e');
+      debugPrint('Error fetching user profile from PowerSync: $e');
       return null;
     }
   }

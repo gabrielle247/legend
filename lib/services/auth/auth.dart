@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:legend/models/legend.dart';
+import 'package:legend/models/school_config.dart';
 import 'package:legend/repo/auth/auth.dart';
 import 'package:legend/repo/auth/school_repo.dart';
 import 'package:legend/services/database_serv.dart';
