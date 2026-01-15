@@ -2,11 +2,12 @@
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:legend/constants/app_constants.dart';
-import 'package:legend/constants/app_strings.dart';
-import 'package:legend/models/all_models.dart';
-import 'package:legend/services/auth/auth.dart';
-import 'package:legend/vmodels/students_vmodel.dart';
+import 'package:legend/data/constants/app_constants.dart';
+import 'package:legend/data/constants/app_strings.dart';
+import 'package:legend/data/models/all_models.dart';
+import 'package:legend/data/repo/student_repo.dart';
+import 'package:legend/data/services/auth/auth.dart';
+import 'package:legend/data/vmodels/students_vmodel.dart';
 import 'package:provider/provider.dart';
 
 
@@ -34,7 +35,7 @@ class _ViewStudentScreenState extends State<ViewStudentScreen>
 
     // Get dependencies from context
     final authService = context.read<AuthService>();
-    final repo = PowerSyncStudentRepository();
+    final repo = StudentRepository();
     final schoolId = authService.activeSchool?.id ?? '';
 
     _vm = StudentDetailViewModel(repo, schoolId);

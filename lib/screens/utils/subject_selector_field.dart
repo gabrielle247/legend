@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:legend/constants/app_constants.dart';
-import '../../constants/subjects.dart'; // Ensure this points to your ZimsecSubject model
+import 'package:legend/data/constants/app_constants.dart';
+import '../../data/constants/subjects.dart'; // Ensure this points to your ZimsecSubject model
 
 class SubjectSelectorField extends StatefulWidget {
   final List<String> selectedSubjects;

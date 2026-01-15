@@ -1,4 +1,4 @@
-import 'app_libs.dart';
+import 'package:legend/app_libs.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -9,10 +9,10 @@ class LegendRouter {
 
   late final GoRouter router = GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: AppRoutes.dashboard, // We aim for dashboard, redirect handles the rest
-    
+    initialLocation: AppRoutes.dashboard,
+
     // -------------------------------------------------------------------------
-    // THE MAGIC LINK: This listens to AuthService.notifyListeners()
+    // THE MAGIC LINK: Listens to Auth changes
     // -------------------------------------------------------------------------
     refreshListenable: authService,
 
@@ -21,42 +21,66 @@ class LegendRouter {
     // -------------------------------------------------------------------------
     redirect: (context, state) {
       final isLoggedIn = authService.isAuthenticated;
+      final requiresSetup = authService.requiresOnlineSetup;
       final location = state.uri.toString();
 
-      // Define public routes
-      final isAuthRoute = location == AppRoutes.login || 
-                          location == AppRoutes.signup || 
-                          location == AppRoutes.resetPassword;
+      final isAuthRoute =
+          location == AppRoutes.login ||
+          location == AppRoutes.signup ||
+          location == AppRoutes.resetPassword;
+      final isSetupRoute = location == '/offline-setup';
 
       // 1. If NOT logged in...
       if (!isLoggedIn) {
-        // ...and trying to go to a protected route -> Redirect to Login
         if (!isAuthRoute) return AppRoutes.login;
       }
 
       // 2. If LOGGED IN...
       if (isLoggedIn) {
-        // ...and trying to go to Login/Signup -> Redirect to Dashboard
-        if (isAuthRoute) return AppRoutes.dashboard;
+        // A. SECURITY CHECK: Do we need online verification?
+        if (requiresSetup) {
+          if (!isSetupRoute) return '/offline-setup';
+          return null;
+        }
+
+        // B. If verified, prevent going back to Login/Setup
+        if (isAuthRoute || isSetupRoute) return AppRoutes.dashboard;
       }
 
-      // 3. Otherwise, let them pass
       return null;
     },
 
     errorBuilder: (context, state) => const Scaffold(
       backgroundColor: AppColors.backgroundBlack,
-      body: Center(child: Text('Route Error', style: TextStyle(color: Colors.white))),
+      body: Center(
+        child: Text('Route Error', style: TextStyle(color: Colors.white)),
+      ),
     ),
 
     routes: [
       // =========================================================================
       // 1. AUTH & PUBLIC
       // =========================================================================
-      GoRoute(path: AppRoutes.login, builder: (context, state) => const LoginScreen()),
-      GoRoute(path: AppRoutes.signup, builder: (context, state) => const SignupScreen()),
-      GoRoute(path: AppRoutes.resetPassword, builder: (context, state) => const ForgotPasswordScreen()),
-      GoRoute(path: AppRoutes.tos, builder: (context, state) => const TosScreen()),
+      GoRoute(
+        path: AppRoutes.login,
+        builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.signup,
+        builder: (context, state) => const SignupScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.resetPassword,
+        builder: (context, state) => const ForgotPasswordScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.tos,
+        builder: (context, state) => const TosScreen(),
+      ),
+      GoRoute(
+        path: '/offline-setup',
+        builder: (context, state) => const OfflineSetupScreen(),
+      ),
 
       // =========================================================================
       // 2. SHELL ROUTES (Bottom Navigation)
@@ -73,8 +97,27 @@ class LegendRouter {
                 path: AppRoutes.dashboard,
                 builder: (context, state) => const DashboardScreen(),
                 routes: [
-                  GoRoute(path: AppRoutes.notifications, builder: (context, state) => const NotificationsScreen()),
-                  GoRoute(path: AppRoutes.statistics, builder: (context, state) => const StatisticsScreen()),
+                  // UPDATED: Notifications now has a sub-route for details
+                  GoRoute(
+                    path: AppRoutes.notifications,
+                    builder: (context, state) => const NotificationsScreen(),
+                    routes: [
+                      GoRoute(
+                        path: 'detail', // Path: /dashboard/notifications/detail
+                        parentNavigatorKey:
+                            _rootNavigatorKey, // Covers bottom nav
+                        builder: (context, state) {
+                          // Pass the notification object via 'extra'
+                          final noti = state.extra as LegendNotification;
+                          return NotificationDetailScreen(notification: noti);
+                        },
+                      ),
+                    ],
+                  ),
+                  GoRoute(
+                    path: AppRoutes.statistics,
+                    builder: (context, state) => const StatisticsScreen(),
+                  ),
                 ],
               ),
             ],
@@ -89,18 +132,23 @@ class LegendRouter {
                 routes: [
                   GoRoute(
                     path: AppRoutes.addStudent,
-                    parentNavigatorKey: _rootNavigatorKey, 
+                    parentNavigatorKey: _rootNavigatorKey,
                     builder: (context, state) => const AddStudentScreen(),
                   ),
                   GoRoute(
                     path: AppRoutes.viewStudent,
                     parentNavigatorKey: _rootNavigatorKey,
-                    builder: (context, state) => ViewStudentScreen(studentId: state.pathParameters['studentId']),
+                    builder: (context, state) => ViewStudentScreen(
+                      // FIX: Add '!'
+                      studentId: state.pathParameters['studentId']!,
+                    ),
                   ),
                   GoRoute(
                     path: AppRoutes.studentLogs,
                     parentNavigatorKey: _rootNavigatorKey,
-                    builder: (context, state) => StudentLogsScreen(studentId: state.pathParameters['studentId']),
+                    builder: (context, state) => StudentLogsScreen(
+                      studentId: state.pathParameters['studentId']!,
+                    ),
                   ),
                 ],
               ),
@@ -122,12 +170,16 @@ class LegendRouter {
                   GoRoute(
                     path: AppRoutes.viewInvoice,
                     parentNavigatorKey: _rootNavigatorKey,
-                    builder: (context, state) => ViewInvoiceScreen(invoiceId: state.pathParameters['invoiceId']),
+                    builder: (context, state) => ViewInvoiceScreen(
+                      invoiceId: state.pathParameters['invoiceId'],
+                    ),
                   ),
                   GoRoute(
                     path: AppRoutes.recordPayment,
                     parentNavigatorKey: _rootNavigatorKey,
-                    builder: (context, state) => RecordPaymentScreen(studentId: state.uri.queryParameters['studentId']),
+                    builder: (context, state) => RecordPaymentScreen(
+                      studentId: state.uri.queryParameters['studentId'],
+                    ),
                   ),
                 ],
               ),
@@ -179,7 +231,9 @@ class AppShell extends StatelessWidget {
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           color: AppColors.surfaceDarkGrey,
-          border: Border(top: BorderSide(color: AppColors.surfaceLightGrey, width: 0.5)),
+          border: Border(
+            top: BorderSide(color: AppColors.surfaceLightGrey, width: 0.5),
+          ),
         ),
         child: SafeArea(
           top: false,
@@ -197,10 +251,22 @@ class AppShell extends StatelessWidget {
               selectedIndex: navigationShell.currentIndex,
               onTabChange: _onTabSelected,
               tabs: const [
-                GButton(icon: Icons.dashboard_outlined, text: AppStrings.dashboardTitle),
-                GButton(icon: Icons.people_outline, text: AppStrings.studentsTitle),
-                GButton(icon: Icons.account_balance_wallet_outlined, text: AppStrings.financeTitle),
-                GButton(icon: Icons.person_outline, text: AppStrings.settingsTitle),
+                GButton(
+                  icon: Icons.dashboard_outlined,
+                  text: AppStrings.dashboardTitle,
+                ),
+                GButton(
+                  icon: Icons.people_outline,
+                  text: AppStrings.studentsTitle,
+                ),
+                GButton(
+                  icon: Icons.account_balance_wallet_outlined,
+                  text: AppStrings.financeTitle,
+                ),
+                GButton(
+                  icon: Icons.person_outline,
+                  text: AppStrings.settingsTitle,
+                ),
               ],
             ),
           ),

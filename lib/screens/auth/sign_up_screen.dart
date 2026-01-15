@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:legend/constants/app_constants.dart';
+import 'package:legend/app_libs.dart'; // WIRED: Access Repos & Constants
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -14,6 +14,7 @@ class _SignupScreenState extends State<SignupScreen> {
   // UI State
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
+  bool _isLoading = false;
   
   // Controllers
   final TextEditingController _nameController = TextEditingController();
@@ -32,12 +33,100 @@ class _SignupScreenState extends State<SignupScreen> {
     super.dispose();
   }
 
-  void _handleSignup() {
-    // PLACEBO: Navigate to Dashboard directly
+  Future<void> _handleSignup() async {
+    // 1. Validation
+    if (_nameController.text.isEmpty || 
+        _emailController.text.isEmpty || 
+        _schoolNameController.text.isEmpty || 
+        _passwordController.text.isEmpty) {
+      _showSnack("All fields are required", isError: true);
+      return;
+    }
+
+    if (_passwordController.text != _confirmPasswordController.text) {
+      _showSnack("Passwords do not match", isError: true);
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final authRepo = context.read<AuthRepository>();
+      final schoolRepo = context.read<SchoolRepository>();
+
+      // 2. Create Supabase User
+      final response = await authRepo.signUp(
+        _emailController.text.trim(),
+        _passwordController.text,
+        _nameController.text.trim(),
+      );
+
+      // 3. Logic Fork: Auto-Login vs Email Verification
+      // If we have a session, we can create the school immediately.
+      if (response.session != null && response.user != null) {
+        
+        // Create the School Config for this new owner
+        await schoolRepo.createSchool(
+          ownerId: response.user!.id,
+          schoolName: _schoolNameController.text.trim(),
+        );
+
+        // Force a session refresh to load this new school into AuthService
+        if (mounted) {
+           // We simply go to login, which will auto-detect the session or allow clean entry
+           // Alternatively, we could manually trigger AuthService.init(), but redirecting to dashboard
+           // via the Router's refreshListenable is safer.
+           context.go(AppRoutes.dashboard);
+        }
+
+      } else {
+        // No Session = Email Confirmation Required
+        if (mounted) {
+          _showSuccessDialog();
+        }
+      }
+
+    } catch (e) {
+      if (mounted) {
+        _showSnack(e.toString(), isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showSnack(String msg, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Account Created! Welcome to the Academy.")),
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: isError ? AppColors.errorRed : AppColors.successGreen,
+        behavior: SnackBarBehavior.floating,
+      ),
     );
-    context.go(AppRoutes.dashboard);
+  }
+
+  void _showSuccessDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceDarkGrey,
+        title: const Text("Account Created", style: TextStyle(color: Colors.white)),
+        content: const Text(
+          "Please check your email to confirm your account.\n\nOnce verified, you can log in and manage your school.",
+          style: TextStyle(color: AppColors.textGrey),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.go(AppRoutes.login);
+            },
+            child: const Text("Go to Login", style: TextStyle(color: AppColors.primaryBlue)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -49,25 +138,21 @@ class _SignupScreenState extends State<SignupScreen> {
       body: Stack(
         children: [
           // -------------------------------------------------------------------
-          // 1. HEADER (Gradient & Title)
+          // 1. HEADER
           // -------------------------------------------------------------------
           Container(
-            height: size.height * 0.35, // Slightly shorter header for Signup
+            height: size.height * 0.35, 
             width: double.infinity,
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [
-                  AppColors.primaryBlueLight,
-                  AppColors.primaryBlue,
-                ],
+                colors: [AppColors.primaryBlueLight, AppColors.primaryBlue],
               ),
             ),
             child: SafeArea(
               child: Column(
                 children: [
-                  // Back Button (Custom for aesthetics)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Align(
@@ -89,10 +174,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   const SizedBox(height: 8),
                   Text(
                     "Create your Legend",
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 14,
-                      color: Colors.white70,
-                    ),
+                    style: GoogleFonts.jetBrainsMono(fontSize: 14, color: Colors.white70),
                   ),
                 ],
               ),
@@ -100,12 +182,12 @@ class _SignupScreenState extends State<SignupScreen> {
           ),
 
           // -------------------------------------------------------------------
-          // 2. THE CARD (Form Body)
+          // 2. THE CARD
           // -------------------------------------------------------------------
           Align(
             alignment: Alignment.bottomCenter,
             child: Container(
-              height: size.height * 0.80, // Taller card for more fields
+              height: size.height * 0.80, 
               width: double.infinity,
               decoration: const BoxDecoration(
                 color: AppColors.backgroundBlack,
@@ -133,9 +215,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     ),
                     const SizedBox(height: 32),
 
-                    // ---------------------------------------------------------
-                    // INPUT FIELDS
-                    // ---------------------------------------------------------
+                    // FIELDS
                     _buildTextField(
                       controller: _nameController,
                       label: "Full Name",
@@ -171,7 +251,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     _buildTextField(
                       controller: _confirmPasswordController,
                       label: "Confirm Password",
-                      icon: Icons.lock_outline, // Different icon
+                      icon: Icons.lock_outline, 
                       isPassword: true,
                       isVisible: _isConfirmPasswordVisible,
                       onVisibilityToggle: () => setState(() => _isConfirmPasswordVisible = !_isConfirmPasswordVisible),
@@ -179,54 +259,39 @@ class _SignupScreenState extends State<SignupScreen> {
 
                     const SizedBox(height: 40),
 
-                    // ---------------------------------------------------------
-                    // SIGN UP BUTTON
-                    // ---------------------------------------------------------
+                    // BUTTON
                     SizedBox(
                       width: double.infinity,
                       height: 56,
                       child: ElevatedButton(
-                        onPressed: _handleSignup,
+                        onPressed: _isLoading ? null : _handleSignup,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryBlue, // Blue button for action
+                          backgroundColor: AppColors.primaryBlue, 
                           foregroundColor: Colors.white,
                           elevation: 4,
                           shadowColor: AppColors.primaryBlue.withAlpha(100),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
-                        child: const Text(
-                          "Sign Up",
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                        ),
+                        child: _isLoading 
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text("Sign Up", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                       ),
                     ),
 
                     const SizedBox(height: 24),
 
-                    // ---------------------------------------------------------
-                    // ALREADY HAVE ACCOUNT
-                    // ---------------------------------------------------------
+                    // LOGIN LINK
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text(
-                          "Already have an Account? ",
-                          style: TextStyle(color: AppColors.textGrey),
-                        ),
+                        const Text("Already have an Account? ", style: TextStyle(color: AppColors.textGrey)),
                         GestureDetector(
-                          onTap: () => context.go(AppRoutes.login), // Use go to reset stack if needed, or pop
-                          child: const Text(
-                            "Log in",
-                            style: TextStyle(
-                              color: AppColors.primaryBlueLight,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          onTap: () => context.go(AppRoutes.login),
+                          child: const Text("Log in", style: TextStyle(color: AppColors.primaryBlueLight, fontWeight: FontWeight.bold)),
                         ),
                       ],
                     ),
                     
-                    // Bottom Spacer for scrolling
                     const SizedBox(height: 30),
                   ],
                 ),
@@ -237,10 +302,6 @@ class _SignupScreenState extends State<SignupScreen> {
       ),
     );
   }
-
-  // ---------------------------------------------------------------------------
-  // HELPER WIDGETS
-  // ---------------------------------------------------------------------------
 
   Widget _buildTextField({
     required TextEditingController controller,
@@ -256,11 +317,7 @@ class _SignupScreenState extends State<SignupScreen> {
       children: [
         Text(
           label,
-          style: const TextStyle(
-            color: AppColors.textWhite,
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-          ),
+          style: const TextStyle(color: AppColors.textWhite, fontSize: 14, fontWeight: FontWeight.w500),
         ),
         const SizedBox(height: 8),
         Container(
@@ -279,13 +336,10 @@ class _SignupScreenState extends State<SignupScreen> {
               hintStyle: TextStyle(color: AppColors.textGrey.withAlpha(100)),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              prefixIcon: Icon(icon, color: AppColors.textGrey, size: 22), // Added Prefix Icon
+              prefixIcon: Icon(icon, color: AppColors.textGrey, size: 22),
               suffixIcon: isPassword
                   ? IconButton(
-                      icon: Icon(
-                        isVisible ? Icons.visibility : Icons.visibility_off,
-                        color: AppColors.textGrey,
-                      ),
+                      icon: Icon(isVisible ? Icons.visibility : Icons.visibility_off, color: AppColors.textGrey),
                       onPressed: onVisibilityToggle,
                     )
                   : null,

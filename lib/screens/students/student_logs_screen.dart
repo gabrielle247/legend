@@ -1,57 +1,58 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:legend/constants/app_constants.dart';
-import 'package:legend/constants/app_strings.dart';
-import 'package:legend/models/all_models.dart';
-import 'package:legend/vmodels/student_logs_view_model.dart';
+import 'package:legend/app_libs.dart'; // Imports All
+import 'package:legend/data/vmodels/student_logs_view_model.dart';
+import 'package:provider/provider.dart';
 
-// =============================================================================
-// 3. SCREEN IMPLEMENTATION
-// =============================================================================
-class StudentLogsScreen extends StatefulWidget {
-  //TODO Using real data here
-  final String? studentId;
+class StudentLogsScreen extends StatelessWidget {
+  final String studentId;
 
-  const StudentLogsScreen({super.key, this.studentId});
+  const StudentLogsScreen({super.key, required this.studentId});
 
   @override
-  State<StudentLogsScreen> createState() => _StudentLogsScreenState();
+  Widget build(BuildContext context) {
+    // Inject VM with Repo
+    return ChangeNotifierProvider(
+      create: (context) => StudentLogsViewModel(
+        context.read<StudentRepository>(), 
+        studentId
+      )..loadLogs(), // Load immediately
+      child: const _StudentLogsContent(),
+    );
+  }
 }
 
-class _StudentLogsScreenState extends State<StudentLogsScreen> {
-  late StudentLogsViewModel _vm;
-  String _filter = AppStrings.strNew; // "All", "Financial", "System"
+class _StudentLogsContent extends StatefulWidget {
+  const _StudentLogsContent();
 
   @override
-  void initState() {
-    super.initState();
-    _vm = StudentLogsViewModel(widget.studentId ?? AppStrings.exampleStuId);
-    _initLoad();
-  }
+  State<_StudentLogsContent> createState() => _StudentLogsContentState();
+}
 
-  void _initLoad() async {
-    await _vm.loadLogs();
-    if (mounted) setState(() {});
-  }
+class _StudentLogsContentState extends State<_StudentLogsContent> {
+  String _filter = AppStrings.strAll; // "All", "Financial", "System"
 
   // Filter Logic
-  List<LogEntry> get _filteredLogs {
-    if (_filter == AppStrings.strNew) return _vm.logs;
+  List<LogEntry> _getFilteredLogs(List<LogEntry> logs) {
+    if (_filter == AppStrings.strAll) return logs;
     if (_filter == AppStrings.logsF) {
-      return _vm.logs.where((l) => l.type == LogType.financial).toList();
+      return logs.where((l) => l.type == LogType.financial).toList();
     }
     if (_filter == AppStrings.logsS) {
-      return _vm.logs.where((l) => l.type == LogType.system).toList();
+      return logs.where((l) => l.type == LogType.system).toList();
     }
     if (_filter == AppStrings.logsA) {
-      return _vm.logs.where((l) => l.type == LogType.alert).toList();
+      return logs.where((l) => l.type == LogType.alert).toList();
     }
-    return _vm.logs;
+    return logs;
   }
 
   @override
   Widget build(BuildContext context) {
+    final vm = context.watch<StudentLogsViewModel>();
+    final filteredLogs = _getFilteredLogs(vm.logs);
+
     return Scaffold(
       backgroundColor: AppColors.backgroundBlack,
       appBar: AppBar(
@@ -68,35 +69,24 @@ class _StudentLogsScreenState extends State<StudentLogsScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(
-              Icons.download_outlined,
-              color: AppColors.primaryBlue,
-            ),
+            icon: const Icon(Icons.download_outlined, color: AppColors.primaryBlue),
             tooltip: AppStrings.exportLogs,
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(AppStrings.actionMessageExporting),
-                  backgroundColor: AppColors.surfaceLightGrey,
-                ),
+                const SnackBar(content: Text(AppStrings.actionMessageExporting), backgroundColor: AppColors.surfaceLightGrey),
               );
             },
           ),
         ],
       ),
-      body: _vm.isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.primaryBlue),
-            )
+      body: vm.isLoading
+          ? const Center(child: CircularProgressIndicator(color: AppColors.primaryBlue))
           : Column(
               children: [
                 // 1. FILTER CHIPS
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   child: Row(
                     children: [
                       _buildFilterChip(AppStrings.strAll),
@@ -112,17 +102,14 @@ class _StudentLogsScreenState extends State<StudentLogsScreen> {
 
                 // 2. TIMELINE LIST
                 Expanded(
-                  child: _filteredLogs.isEmpty
+                  child: filteredLogs.isEmpty
                       ? _buildEmptyState()
                       : ListView.builder(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 10,
-                          ),
-                          itemCount: _filteredLogs.length,
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          itemCount: filteredLogs.length,
                           itemBuilder: (context, index) {
-                            final log = _filteredLogs[index];
-                            final isLast = index == _filteredLogs.length - 1;
+                            final log = filteredLogs[index];
+                            final isLast = index == filteredLogs.length - 1;
                             return _buildTimelineItem(log, isLast);
                           },
                         ),
@@ -150,11 +137,7 @@ class _StudentLogsScreenState extends State<StudentLogsScreen> {
       ),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        side: BorderSide(
-          color: isSelected
-              ? Colors.transparent
-              : AppColors.surfaceLightGrey.withAlpha(50),
-        ),
+        side: BorderSide(color: isSelected ? Colors.transparent : AppColors.surfaceLightGrey.withAlpha(50)),
       ),
     );
   }
@@ -193,28 +176,17 @@ class _StudentLogsScreenState extends State<StudentLogsScreen> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  DateFormat(AppStrings.mmm).format(log.timestamp).toUpperCase(),
-                  style: const TextStyle(
-                    color: AppColors.textGrey,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  DateFormat("MMM").format(log.timestamp).toUpperCase(),
+                  style: const TextStyle(color: AppColors.textGrey, fontSize: 10, fontWeight: FontWeight.bold),
                 ),
                 Text(
-                  DateFormat(AppStrings.dd).format(log.timestamp),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  DateFormat("dd").format(log.timestamp),
+                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  DateFormat(AppStrings.hhmm).format(log.timestamp),
-                  style: TextStyle(
-                    color: AppColors.textGrey.withAlpha(150),
-                    fontSize: 10,
-                  ),
+                  DateFormat("HH:mm").format(log.timestamp),
+                  style: TextStyle(color: AppColors.textGrey.withAlpha(150), fontSize: 10),
                 ),
               ],
             ),
@@ -237,19 +209,13 @@ class _StudentLogsScreenState extends State<StudentLogsScreen> {
                   child: Container(
                     width: 4,
                     height: 4,
-                    decoration: BoxDecoration(
-                      color: typeColor,
-                      shape: BoxShape.circle,
-                    ),
+                    decoration: BoxDecoration(color: typeColor, shape: BoxShape.circle),
                   ),
                 ),
               ),
               if (!isLast)
                 Expanded(
-                  child: Container(
-                    width: 2,
-                    color: AppColors.surfaceLightGrey.withAlpha(30),
-                  ),
+                  child: Container(width: 2, color: AppColors.surfaceLightGrey.withAlpha(30)),
                 ),
             ],
           ),
@@ -265,9 +231,7 @@ class _StudentLogsScreenState extends State<StudentLogsScreen> {
                 decoration: BoxDecoration(
                   color: AppColors.surfaceDarkGrey,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: AppColors.surfaceLightGrey.withAlpha(20),
-                  ),
+                  border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(20)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -276,12 +240,11 @@ class _StudentLogsScreenState extends State<StudentLogsScreen> {
                       children: [
                         Icon(typeIcon, size: 14, color: typeColor),
                         const SizedBox(width: 6),
-                        Text(
-                          log.title,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
+                        Expanded(
+                          child: Text(
+                            log.title,
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
@@ -289,27 +252,16 @@ class _StudentLogsScreenState extends State<StudentLogsScreen> {
                     const SizedBox(height: 6),
                     Text(
                       log.description,
-                      style: const TextStyle(
-                        color: AppColors.textGrey,
-                        fontSize: 12,
-                        height: 1.4,
-                      ),
+                      style: const TextStyle(color: AppColors.textGrey, fontSize: 12, height: 1.4),
                     ),
                     const SizedBox(height: 10),
                     Row(
                       children: [
-                        const Icon(
-                          Icons.person_outline,
-                          size: 12,
-                          color: AppColors.textGrey,
-                        ),
+                        const Icon(Icons.person_outline, size: 12, color: AppColors.textGrey),
                         const SizedBox(width: 4),
                         Text(
                           "By: ${log.performedBy}",
-                          style: TextStyle(
-                            color: AppColors.textGrey.withAlpha(150),
-                            fontSize: 10,
-                          ),
+                          style: TextStyle(color: AppColors.textGrey.withAlpha(150), fontSize: 10),
                         ),
                       ],
                     ),

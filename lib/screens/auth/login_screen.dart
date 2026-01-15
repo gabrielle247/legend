@@ -1,9 +1,5 @@
-import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:legend/constants/app_constants.dart';
-import 'package:legend/services/auth/auth.dart';
-import 'package:provider/provider.dart';
+import 'package:legend/app_libs.dart'; // Standardized Import
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -48,13 +44,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       // 3. Call Auth Service (This handles Supabase Login + School Fetch)
-      // Note: We use context.read because we are inside a callback, not build()
+      // Note: We use context.read because we are inside a callback
       await context.read<AuthService>().login(email, password);
 
-      if (mounted) {
-        // 4. Success -> Navigate
-        context.go(AppRoutes.dashboard);
-      }
+      // 4. Success -> Navigation is handled automatically by the Router
+      // because it listens to AuthService.
     } catch (e) {
       // 5. Error Handling
       if (mounted) {
@@ -67,7 +61,7 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } finally {
-      // 6. Reset Loading State (if still on screen)
+      // 6. Reset Loading State
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -360,6 +354,7 @@ class _LoginScreenState extends State<LoginScreen> {
               hintStyle: TextStyle(color: AppColors.textGrey.withAlpha(100)),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              prefixIcon: Icon(icon, color: AppColors.textGrey, size: 22), // Added Icon
               suffixIcon: isPassword
                   ? IconButton(
                       icon: Icon(

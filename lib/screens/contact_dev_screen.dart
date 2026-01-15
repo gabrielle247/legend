@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:legend/constants/app_constants.dart';
+import 'package:legend/data/constants/app_constants.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ContactDevScreen extends StatefulWidget {

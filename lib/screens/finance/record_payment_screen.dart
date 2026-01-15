@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:legend/constants/app_constants.dart';
-import 'package:legend/vmodels/payment_view_model.dart';
+import 'package:legend/data/constants/app_constants.dart';
+import 'package:legend/data/vmodels/payment_view_model.dart';
 
 // =============================================================================
 // 2. SCREEN IMPLEMENTATION

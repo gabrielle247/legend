@@ -7,7 +7,7 @@ export 'dashboard/statistics_screen.dart';
 export 'students/students_screen.dart';
 export 'finance/finance_screen.dart';
 export 'settings/settings_screen.dart';
-export 'package:legend/models/all_models.dart';
+export 'package:legend/data/models/all_models.dart';
 export 'package:legend/screens/finance/create_invoice_screen.dart';
 export 'package:legend/screens/finance/record_payment_screen.dart';
 export 'package:legend/screens/finance/view_invoice_screen.dart';

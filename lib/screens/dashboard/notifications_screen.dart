@@ -1,10 +1,4 @@
-import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:legend/models/all_models.dart';
-import 'package:legend/repo/dashboard_repo.dart';
-import 'package:legend/services/auth/auth.dart';
-import 'package:provider/provider.dart';
-import 'package:legend/constants/app_constants.dart';
+import 'package:legend/app_libs.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -21,8 +15,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   void initState() {
     super.initState();
-    // 1. Initialize the Stream
-    // We use postFrameCallback to safely access Provider in initState
+    // 1. Initialize the Stream safely after the widget mounts
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final authService = context.read<AuthService>();
       final repo = context.read<DashboardRepository>();
@@ -90,19 +83,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
+  // THE COUP DE GRÂCE NAVIGATOR
   void _handleNotificationTap(LegendNotification noti) {
-    // 1. Mark as read immediately
+    // 1. Mark as read immediately (User Interaction Feedback)
     if (!noti.isRead) {
       _handleMarkAsRead(noti.id);
     }
 
-    // 2. Handle Navigation (Smart Routing)
-    // Checks the 'metadata' JSON to see if we should go somewhere
-    if (noti.metadata.containsKey('invoice_id')) {
-      // Example: context.push('${AppRoutes.finance}/invoice/${noti.metadata['invoice_id']}');
-    } else if (noti.metadata.containsKey('student_id')) {
-      context.push('${AppRoutes.students}/view/${noti.metadata['student_id']}');
-    }
+    // 2. Navigate to Detail Screen
+    // We pass the 'noti' object via 'extra' so the next screen renders instantly
+    // The route '/dashboard/notifications/detail' corresponds to the sub-route in app_router.dart
+    context.push(
+      '${AppRoutes.dashboard}/${AppRoutes.notifications}/detail', 
+      extra: noti,
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -112,7 +106,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Widget build(BuildContext context) {
     // If stream is not initialized yet (rare, but possible on fast load)
     if (_notificationsStream == null) {
-      return const Scaffold(backgroundColor: AppColors.backgroundBlack, body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(
+        backgroundColor: AppColors.backgroundBlack, 
+        body: Center(child: CircularProgressIndicator(color: AppColors.primaryBlue))
+      );
     }
 
     return Scaffold(
@@ -271,16 +268,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        noti.title,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
+                      Expanded(
+                        child: Text(
+                          noti.title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                      const SizedBox(width: 8),
                       Text(
-                        // Simple time formatting
+                        // Simple time formatting (HH:MM)
                         "${noti.createdAt.hour}:${noti.createdAt.minute.toString().padLeft(2,'0')}", 
                         style: const TextStyle(color: AppColors.textGrey, fontSize: 11),
                       ),

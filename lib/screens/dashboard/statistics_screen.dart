@@ -1,12 +1,5 @@
 import 'package:fl_chart/fl_chart.dart';
-import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:legend/constants/app_constants.dart';
-import 'package:legend/models/all_models.dart';
-import 'package:legend/repo/dashboard_repo.dart';
-import 'package:legend/services/auth/auth.dart';
-import 'package:legend/vmodels/stats_view_model.dart';
-import 'package:provider/provider.dart';
+import 'package:legend/app_libs.dart'; // Imports Auth, VModels, Constants
 
 // -----------------------------------------------------------------------------
 // UI IMPLEMENTATION
@@ -19,73 +12,19 @@ class StatisticsScreen extends StatefulWidget {
 }
 
 class _StatisticsScreenState extends State<StatisticsScreen> {
-  // Filters State
+  // Local UI State for Filters (Visual toggles)
   String _timeFilter = 'This Term';
   String _gradeFilter = 'All Grades';
-
-  // Async State
-  late Future<StatsViewModel> _dataFuture;
 
   @override
   void initState() {
     super.initState();
-    _dataFuture = _loadData();
+    // TRIGGER: Tell the VM to load data when screen opens
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<StatsViewModel>().loadStats();
+    });
   }
 
-  /// --------------------------------------------------------------------------
-  /// DATA LOADER (Real DB Fetching)
-  /// --------------------------------------------------------------------------
-  Future<StatsViewModel> _loadData() async {
-    final authService = context.read<AuthService>();
-    final dashboardRepo = context.read<DashboardRepository>();
-    
-    final school = authService.activeSchool;
-    if (school == null) return StatsViewModel.empty();
-
-    try {
-      // 1. Fetch all required data in parallel
-      final results = await Future.wait([
-        dashboardRepo.getRevenueTrend(school.id),      // index 0
-        dashboardRepo.getDebtByGrade(school.id),       // index 1
-        dashboardRepo.getPaymentMethodStats(school.id),// index 2
-        dashboardRepo.getDashboardStats(school.id),    // index 3
-      ]);
-
-      final revenueTrendRows = results[0] as List<Map<String, dynamic>>;
-      final debtByGrade = results[1] as List<Map<String, dynamic>>;
-      final paymentMethods = results[2] as Map<String, double>;
-      final dashboardStats = results[3] as DashboardStats;
-
-      // 2. Process Revenue Trend (SQL Date -> FlSpot)
-      double calculatedRevenue = 0;
-      List<FlSpot> spots = [];
-      
-      for (int i = 0; i < revenueTrendRows.length; i++) {
-        final row = revenueTrendRows[i];
-        final amount = (row['total'] as num).toDouble();
-        calculatedRevenue += amount;
-        // X-Axis = Index (Day 0, Day 1...), Y-Axis = Amount in Thousands (k)
-        spots.add(FlSpot(i.toDouble(), amount / 1000)); 
-      }
-
-      return StatsViewModel(
-        totalRevenue: calculatedRevenue,
-        outstandingDebt: dashboardStats.totalOwed, // Source of Truth from Repo
-        activeStudents: dashboardStats.totalStudents,
-        revenueTrend: spots.isEmpty ? [const FlSpot(0, 0)] : spots,
-        debtByGrade: debtByGrade,
-        paymentMethods: paymentMethods,
-      );
-
-    } catch (e) {
-      debugPrint("Stats Load Error: $e");
-      return StatsViewModel.empty();
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // UI BUILD
-  // ---------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -110,203 +49,224 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
             tooltip: "Export Report",
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Exporting PDF...'), backgroundColor: AppColors.surfaceLightGrey),
+                const SnackBar(
+                  content: Text('Exporting PDF...'), 
+                  backgroundColor: AppColors.surfaceLightGrey
+                ),
               );
             },
           ),
         ],
       ),
 
-      // BODY
-      body: FutureBuilder<StatsViewModel>(
-        future: _dataFuture,
-        builder: (context, snapshot) {
-          // 1. Loading
-          if (snapshot.connectionState == ConnectionState.waiting) {
+      // BODY (Consumed from ViewModel)
+      body: Consumer<StatsViewModel>(
+        builder: (context, vm, child) {
+          
+          // 1. LOADING
+          if (vm.isLoading) {
             return const Center(child: CircularProgressIndicator(color: AppColors.primaryBlue));
           }
 
-          // 2. Error
-          if (snapshot.hasError) {
-             return Center(child: Text("Error: ${snapshot.error}", style: const TextStyle(color: AppColors.errorRed)));
+          // 2. ERROR
+          if (vm.error != null) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, color: AppColors.errorRed, size: 48),
+                  const SizedBox(height: 16),
+                  Text("Error: ${vm.error}", style: const TextStyle(color: AppColors.textGrey)),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: vm.refresh,
+                    child: const Text("Retry"),
+                  )
+                ],
+              ),
+            );
           }
 
-          // 3. Data Ready
-          final data = snapshot.data!;
+          // 3. DATA READY
+          final data = vm.data;
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 1. FILTER BAR
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _buildFilterChip('This Term', _timeFilter, (val) => setState(() => _timeFilter = val)),
-                      const SizedBox(width: 8),
-                      _buildFilterChip('Last Term', _timeFilter, (val) => setState(() => _timeFilter = val)),
-                      const SizedBox(width: 8),
-                      _buildFilterChip('All Grades', _gradeFilter, (val) => setState(() => _gradeFilter = val)),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // 2. KPI CARDS
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildKpiCard(
-                        title: "Revenue (7 Days)",
-                        value: "\$${(data.totalRevenue).toStringAsFixed(0)}",
-                        // Trend is removed because we need previous period data to calculate it truthfully
-                        trend: "Real-time", 
-                        isPositive: true,
-                        icon: Icons.show_chart,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _buildKpiCard(
-                        title: "Total Outstanding",
-                        value: "\$${(data.outstandingDebt / 1000).toStringAsFixed(1)}k",
-                        trend: "Unpaid Fees",
-                        isPositive: false,
-                        icon: Icons.warning_amber,
-                        color: AppColors.errorRed,
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 32),
-
-                // 3. REVENUE TREND
-                const Text(
-                  "Income Trajectory",
-                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  "Daily collections (in thousands)",
-                  style: TextStyle(color: AppColors.textGrey, fontSize: 12),
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  height: 200,
-                  padding: const EdgeInsets.only(right: 16, top: 24, bottom: 12),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceDarkGrey,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(20)),
-                  ),
-                  child: LineChart(
-                    LineChartData(
-                      gridData: const FlGridData(show: false),
-                      titlesData: const FlTitlesData(show: false),
-                      borderData: FlBorderData(show: false),
-                      minY: 0,
-                      lineBarsData: [
-                        LineChartBarData(
-                          spots: data.revenueTrend,
-                          isCurved: true,
-                          color: AppColors.primaryBlue,
-                          barWidth: 3,
-                          isStrokeCapRound: true,
-                          dotData: const FlDotData(show: true),
-                          belowBarData: BarAreaData(
-                            show: true,
-                            color: AppColors.primaryBlue.withAlpha(30),
-                          ),
-                        ),
+          return RefreshIndicator(
+            onRefresh: vm.refresh,
+            color: AppColors.primaryBlue,
+            backgroundColor: AppColors.surfaceDarkGrey,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 1. FILTER BAR
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildFilterChip('This Term', _timeFilter, (val) => setState(() => _timeFilter = val)),
+                        const SizedBox(width: 8),
+                        _buildFilterChip('Last Term', _timeFilter, (val) => setState(() => _timeFilter = val)),
+                        const SizedBox(width: 8),
+                        _buildFilterChip('All Grades', _gradeFilter, (val) => setState(() => _gradeFilter = val)),
                       ],
                     ),
                   ),
-                ),
 
-                const SizedBox(height: 32),
+                  const SizedBox(height: 24),
 
-                // 4. DEBT BY GRADE
-                const Text(
-                  "Debt Distribution",
-                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceDarkGrey,
-                    borderRadius: BorderRadius.circular(16),
+                  // 2. KPI CARDS
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildKpiCard(
+                          title: "Revenue (7 Days)",
+                          value: "\$${(data.totalRevenue).toStringAsFixed(0)}",
+                          trend: "Real-time", 
+                          isPositive: true,
+                          icon: Icons.show_chart,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildKpiCard(
+                          title: "Total Outstanding",
+                          value: "\$${(data.outstandingDebt / 1000).toStringAsFixed(1)}k",
+                          trend: "Unpaid Fees",
+                          isPositive: false,
+                          icon: Icons.warning_amber,
+                          color: AppColors.errorRed,
+                        ),
+                      ),
+                    ],
                   ),
-                  child: Column(
-                    children: data.debtByGrade.isEmpty 
-                    ? [const Padding(padding: EdgeInsets.all(8.0), child: Text("No debt records found.", style: TextStyle(color: AppColors.textGrey)))]
-                    : data.debtByGrade.map((item) {
-                        // Dynamic Max for Scaling Bars correctly
-                        // Find max debt in the list to normalize the bar width
-                        final double maxDebtInList = data.debtByGrade.fold(0.0, (prev, e) {
-                          final amt = (e['amount'] as num).toDouble();
-                          return amt > prev ? amt : prev;
-                        });
-                        
-                        final double amount = (item['amount'] as num).toDouble();
-                        final double pct = maxDebtInList > 0 ? (amount / maxDebtInList).clamp(0.0, 1.0) : 0.0;
-                        
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 12.0),
-                          child: Row(
-                            children: [
-                              SizedBox(
-                                width: 60,
-                                child: Text(
-                                  item['grade'] ?? 'N/A',
-                                  style: const TextStyle(color: AppColors.textGrey, fontWeight: FontWeight.bold, fontSize: 12),
+
+                  const SizedBox(height: 32),
+
+                  // 3. REVENUE TREND CHART
+                  const Text(
+                    "Income Trajectory",
+                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    "Daily collections (in thousands)",
+                    style: TextStyle(color: AppColors.textGrey, fontSize: 12),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    height: 200,
+                    padding: const EdgeInsets.only(right: 16, top: 24, bottom: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceDarkGrey,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(20)),
+                    ),
+                    child: LineChart(
+                      LineChartData(
+                        gridData: const FlGridData(show: false),
+                        titlesData: const FlTitlesData(show: false),
+                        borderData: FlBorderData(show: false),
+                        minY: 0,
+                        lineBarsData: [
+                          LineChartBarData(
+                            spots: data.revenueTrend,
+                            isCurved: true,
+                            color: AppColors.primaryBlue,
+                            barWidth: 3,
+                            isStrokeCapRound: true,
+                            dotData: const FlDotData(show: true),
+                            belowBarData: BarAreaData(
+                              show: true,
+                              color: AppColors.primaryBlue.withAlpha(30),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // 4. DEBT BY GRADE (Dynamic Bars)
+                  const Text(
+                    "Debt Distribution",
+                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceDarkGrey,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      children: data.debtByGrade.isEmpty 
+                      ? [const Padding(padding: EdgeInsets.all(8.0), child: Text("No debt records found.", style: TextStyle(color: AppColors.textGrey)))]
+                      : data.debtByGrade.map((item) {
+                          // Dynamic Max Logic for scaling
+                          final double maxDebtInList = data.debtByGrade.fold(0.0, (prev, e) {
+                            final amt = (e['amount'] as num).toDouble();
+                            return amt > prev ? amt : prev;
+                          });
+                          
+                          final double amount = (item['amount'] as num).toDouble();
+                          final double pct = maxDebtInList > 0 ? (amount / maxDebtInList).clamp(0.0, 1.0) : 0.0;
+                          
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12.0),
+                            child: Row(
+                              children: [
+                                SizedBox(
+                                  width: 60,
+                                  child: Text(
+                                    item['grade'] ?? 'N/A',
+                                    style: const TextStyle(color: AppColors.textGrey, fontWeight: FontWeight.bold, fontSize: 12),
+                                  ),
                                 ),
-                              ),
-                              Expanded(
-                                child: Stack(
-                                  children: [
-                                    Container(
-                                      height: 8,
-                                      decoration: BoxDecoration(
-                                        color: AppColors.surfaceLightGrey.withAlpha(50),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                    ),
-                                    FractionallySizedBox(
-                                      widthFactor: pct,
-                                      child: Container(
+                                Expanded(
+                                  child: Stack(
+                                    children: [
+                                      Container(
                                         height: 8,
                                         decoration: BoxDecoration(
-                                          color: pct > 0.7 ? AppColors.errorRed : Colors.orangeAccent,
+                                          color: AppColors.surfaceLightGrey.withAlpha(50),
                                           borderRadius: BorderRadius.circular(4),
                                         ),
                                       ),
-                                    ),
-                                  ],
+                                      FractionallySizedBox(
+                                        widthFactor: pct,
+                                        child: Container(
+                                          height: 8,
+                                          decoration: BoxDecoration(
+                                            color: pct > 0.7 ? AppColors.errorRed : Colors.orangeAccent,
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 12),
-                              SizedBox(
-                                width: 60,
-                                child: Text(
-                                  "\$${amount.toStringAsFixed(0)}",
-                                  textAlign: TextAlign.end,
-                                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                                const SizedBox(width: 12),
+                                SizedBox(
+                                  width: 60,
+                                  child: Text(
+                                    "\$${amount.toStringAsFixed(0)}",
+                                    textAlign: TextAlign.end,
+                                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                    ),
                   ),
-                ),
 
-                const SizedBox(height: 40),
-              ],
+                  const SizedBox(height: 40),
+                ],
+              ),
             ),
           );
         },

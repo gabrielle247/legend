@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:legend/models/all_models.dart';
-import 'package:legend/repo/dashboard_repo.dart';
+import 'package:legend/data/models/all_models.dart';
+import 'package:legend/data/repo/dashboard_repo.dart';
 import 'package:provider/provider.dart'; 
-import 'package:legend/constants/app_constants.dart';
+import 'package:legend/data/constants/app_constants.dart';
 
 class NotificationDetailScreen extends StatelessWidget {
   final LegendNotification notification;

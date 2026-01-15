@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:legend/constants/env.dart';
+import 'package:legend/data/constants/env.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:legend/services/database_serv.dart';
+import 'package:legend/data/services/database_serv.dart';
 
 class AppInit {
   static Future<void> initialize() async {

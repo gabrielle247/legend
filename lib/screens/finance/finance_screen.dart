@@ -2,8 +2,8 @@ import 'dart:core';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:legend/constants/app_constants.dart';
-import 'package:legend/vmodels/finance_vmodel.dart';
+import 'package:legend/data/constants/app_constants.dart';
+import 'package:legend/data/vmodels/finance_vmodel.dart';
 import 'package:provider/provider.dart';
 
 // -----------------------------------------------------------------------------

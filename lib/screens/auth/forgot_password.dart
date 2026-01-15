@@ -1,9 +1,5 @@
-// ignore_for_file: unused_field
-
-import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:legend/constants/app_constants.dart';
+import 'package:legend/app_libs.dart';
 
 // -----------------------------------------------------------------------------
 // 1. LOCAL STRINGS
@@ -14,7 +10,7 @@ class _ForgotStrings {
   
   // Step 1: Request
   static const String headRequest = "Forgot Password?";
-  static const String subRequest = "Enter your email address to receive a 6-digit verification code.";
+  static const String subRequest = "Enter your email address to receive a verification code.";
   static const String btnSend = "Send Reset Code";
   
   // Step 2: Verify & Reset
@@ -42,8 +38,6 @@ class ForgotPasswordScreen extends StatefulWidget {
 }
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
-  final _formKey = GlobalKey<FormState>();
-  
   // State
   int _currentStep = 0; // 0 = Request, 1 = Reset
   bool _isLoading = false;
@@ -65,59 +59,88 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     super.dispose();
   }
 
+  void _showSnack(String msg, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg), 
+        backgroundColor: isError ? AppColors.errorRed : AppColors.successGreen,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   // --- Logic: Step 1 (Send Code) ---
   Future<void> _handleSendCode() async {
-    if (_emailController.text.isEmpty || !_emailController.text.contains('@')) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter a valid email"), backgroundColor: AppColors.errorRed),
-      );
+    final email = _emailController.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      _showSnack("Please enter a valid email", isError: true);
       return;
     }
 
     setState(() => _isLoading = true);
     
-    // Simulate API Call
-    await Future.delayed(const Duration(seconds: 1));
+    try {
+      // WIRED: Trigger Supabase Password Reset
+      await context.read<AuthRepository>().resetPasswordForEmail(email);
 
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-        _currentStep = 1; // Move to next step
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text(_ForgotStrings.msgSent), backgroundColor: AppColors.successGreen),
-      );
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _currentStep = 1; // Move to next step
+        });
+        _showSnack(_ForgotStrings.msgSent);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _showSnack(e.toString(), isError: true);
+      }
     }
   }
 
   // --- Logic: Step 2 (Reset) ---
   Future<void> _handleReset() async {
-    // Basic validation logic...
-    if (_codeController.text.length != 6) {
-       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text(_ForgotStrings.errCode), backgroundColor: AppColors.errorRed),
-      );
+    final code = _codeController.text.trim();
+    final pass = _passController.text;
+    final confirm = _confirmController.text;
+    final email = _emailController.text.trim();
+
+    // Validation
+    if (code.length != 6) {
+       _showSnack(_ForgotStrings.errCode, isError: true);
       return;
     }
-    if (_passController.text != _confirmController.text) {
-       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text(_ForgotStrings.errMatch), backgroundColor: AppColors.errorRed),
-      );
+    if (pass != confirm) {
+       _showSnack(_ForgotStrings.errMatch, isError: true);
+      return;
+    }
+    if (pass.length < 6) {
+      _showSnack("Password must be at least 6 characters", isError: true);
       return;
     }
 
     setState(() => _isLoading = true);
 
-    // Simulate API Call
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      final repo = context.read<AuthRepository>();
 
-    if (mounted) {
-      setState(() => _isLoading = false);
+      // WIRED: 1. Verify OTP (gets temporary session)
+      await repo.verifyOtp(email, code, OtpType.recovery);
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text(_ForgotStrings.msgSuccess), backgroundColor: AppColors.successGreen),
-      );
-      context.go(AppRoutes.login); 
+      // WIRED: 2. Update Password (uses that session)
+      await repo.updatePassword(pass);
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _showSnack(_ForgotStrings.msgSuccess);
+        context.go(AppRoutes.login); 
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _showSnack(e.toString(), isError: true);
+      }
     }
   }
 
@@ -299,11 +322,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       
                       const SizedBox(height: 16),
                       TextButton(
-                        onPressed: () {
-                           ScaffoldMessenger.of(context).showSnackBar(
-                             const SnackBar(content: Text(_ForgotStrings.msgSent), backgroundColor: AppColors.surfaceLightGrey)
-                           );
-                        },
+                        onPressed: _handleSendCode, // Resend logic reuses step 1
                         child: const Text(_ForgotStrings.resendLink, style: TextStyle(color: AppColors.primaryBlueLight)),
                       ),
                     ],
