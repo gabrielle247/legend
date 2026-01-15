@@ -44,7 +44,6 @@ class DashboardViewModel extends ChangeNotifier {
 
       // 2. Ignite the Offline Database (If not already running)
       // PowerSync is already connected in AuthService.login()
-      await DatabaseService().connectToSchool(school.id);
 
       // 3. Parallel Data Fetching (Maximum Efficiency)
       // We run all independent queries at the same time.

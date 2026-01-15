@@ -3,13 +3,41 @@ import 'package:legend/models/school_config.dart';
 import 'package:legend/repo/auth/auth.dart';
 import 'package:legend/repo/auth/school_repo.dart';
 import 'package:legend/services/database_serv.dart';
+import 'package:legend/services/powersync/supa_connector.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AuthService extends ChangeNotifier {
   final AuthRepository _authRepo;
   final SchoolRepository _schoolRepo;
 
-  AuthService(this._authRepo, this._schoolRepo);
+  AuthService(this._authRepo, this._schoolRepo) {
+    _restoreSession();
+  }
+
+  Future<void> _restoreSession() async {
+    final userId = _authRepo.currentUser?.id;
+    if (userId != null) {
+      try {
+        debugPrint("🔄 Restoring session for user: $userId");
+        _activeSchool = await _schoolRepo.getSchoolForUser(userId);
+
+        if (_activeSchool != null) {
+          debugPrint("Connecting PowerSync to school: ${_activeSchool!.name}");
+
+          final connector = SupaConnector(
+            schoolId: _activeSchool!.id,
+            supabaseClient: Supabase.instance.client,
+          );
+
+          await DatabaseService().connect(connector);
+          debugPrint("✅ Session restored & PowerSync connected");
+        }
+        notifyListeners();
+      } catch (e) {
+        debugPrint("❌ Session restore failed: $e");
+      }
+    }
+  }
 
   User? get user => _authRepo.currentUser;
 
@@ -35,7 +63,13 @@ class AuthService extends ChangeNotifier {
           debugPrint(
             "Connecting PowerSync to school: ${_activeSchool!.name}",
           );
-          await DatabaseService().connectToSchool(_activeSchool!.id);
+
+          final connector = SupaConnector(
+            schoolId: _activeSchool!.id,
+            supabaseClient: Supabase.instance.client,
+          );
+
+          await DatabaseService().connect(connector);
           debugPrint("PowerSync connected & syncing");
 
           // 4. Wait briefly for initial sync to start
