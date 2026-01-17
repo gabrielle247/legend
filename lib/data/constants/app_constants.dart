@@ -62,37 +62,3 @@ class AppTheme {
     );
   }
 }
-
-// -----------------------------------------------------------------------------
-// ROUTES
-// -----------------------------------------------------------------------------
-class AppRoutes {
-  // --- 1. Auth & Legal ---
-  static const String login = '/login';
-  static const String signup = '/signup';
-  static const String resetPassword = '/reset-password';
-  static const String tos = '/tos'; // Terms of Service
-
-  // --- 2. Shell (Main Tabs) ---
-  static const String dashboard = '/dashboard';
-  static const String students = '/students';
-  static const String finance = '/finance';
-  static const String settings = '/settings';
-
-  // --- 3. Dashboard Features ---
-  static const String notifications = 'notifications'; // /dashboard/notifications
-  static const String statistics = 'statistics'; // /dashboard/statistics
-
-  // --- 4. Student Features ---
-  static const String addStudent = 'add'; // /students/add
-  static const String viewStudent = 'view/:studentId'; // /students/view/123
-  static const String studentLogs = 'logs/:studentId'; // /students/logs/123
-
-  // --- 5. Finance Features ---
-  static const String createInvoice = 'invoice/new'; // /finance/invoice/new
-  static const String viewInvoice = 'invoice/:invoiceId'; // /finance/invoice/INV-001
-  static const String recordPayment = 'payment/new'; // /finance/payment/new
-
-  // --- 6. Settings Features ---
-  static const String contactDev = 'contact-dev'; // /settings/contact-dev
-}

@@ -1,38 +1,49 @@
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:legend/data/models/all_models.dart';
-import 'package:legend/data/services/database_serv.dart'; // Access to global 'db'
+import 'package:legend/data/services/database_serv.dart'; // provides global `db`
 
 class DashboardRepository {
+  // Canonical meaning of "pending/unsettled" across the app:
+  // Anything not settled but issued.
+  static const _openStatuses = "'PENDING','PARTIAL','OVERDUE'";
+
   // ===========================================================================
   // 1. DASHBOARD HOME (Metrics & Feeds)
   // ===========================================================================
 
-  /// Fetches the 4 key numbers for the Dashboard Header
   Future<DashboardStats> getDashboardStats(String schoolId) async {
     try {
-      // 1. Total Students (Active)
       final studentsRes = await db.get(
         "SELECT count(*) as count FROM students WHERE school_id = ? AND status = 'ACTIVE'",
         [schoolId],
       );
 
-      // 2. Pending Invoices (Posted but not paid)
+      // IMPORTANT: Never use POSTED. Your enum set has no POSTED.
+      // Open invoices = PENDING / PARTIAL / OVERDUE
       final invoiceRes = await db.get(
-        "SELECT count(*) as count FROM invoices WHERE school_id = ? AND status = 'POSTED'",
+        """
+        SELECT count(*) as count
+        FROM invoices
+        WHERE school_id = ?
+          AND UPPER(status) IN ($_openStatuses)
+        """,
         [schoolId],
       );
 
-      // 3. Collected Today (Payments received since midnight)
-      // SQLite: date('now') returns YYYY-MM-DD. We check if received_at starts with today's date.
+      // Safer than date(received_at) if received_at is ISO8601 text:
+      // compare the YYYY-MM-DD prefix to today's local date.
       final todayRes = await db.get(
-        "SELECT sum(amount) as total FROM payments WHERE school_id = ? AND date(received_at) = date('now')",
+        """
+        SELECT COALESCE(SUM(amount), 0) as total
+        FROM payments
+        WHERE school_id = ?
+          AND substr(received_at, 1, 10) = date('now','localtime')
+        """,
         [schoolId],
       );
 
-      // 4. Total Owed (Sum of fees_owed column in students table)
-      // This assumes you run a background job or trigger to keep student.fees_owed updated
       final owedRes = await db.get(
-        "SELECT sum(fees_owed) as total FROM students WHERE school_id = ?",
+        "SELECT COALESCE(sum(fees_owed), 0) as total FROM students WHERE school_id = ?",
         [schoolId],
       );
 
@@ -43,8 +54,7 @@ class DashboardRepository {
         totalOwed: (owedRes['total'] as num?)?.toDouble() ?? 0.0,
       );
     } catch (e) {
-      // PowerSync tables might not be ready yet
-      debugPrint('Error fetching dashboard stats from PowerSync: $e');
+      debugPrint('Error fetching dashboard stats: $e');
       return DashboardStats(
         totalStudents: 0,
         pendingInvoices: 0,
@@ -54,35 +64,30 @@ class DashboardRepository {
     }
   }
 
-  /// Fetches recent payments and enrollments for the "Recent Activity" list.
-  /// Formats them directly for the UI.
   Future<List<Map<String, dynamic>>> getRecentActivity(String schoolId) async {
     try {
       const sql = """
-      SELECT 
-        p.id, 
-        'payment' as type, 
-        p.amount, 
+      SELECT
+        p.id,
+        'payment' as type,
+        p.amount,
         s.first_name || ' ' || s.last_name as name,
         'Payment - ' || p.method as description,
-        p.received_at as date 
+        p.received_at as date
       FROM payments p
       LEFT JOIN students s ON p.student_id = s.id
       WHERE p.school_id = ?
-      ORDER BY p.received_at DESC 
+      ORDER BY p.received_at DESC
       LIMIT 5
     """;
 
       final rows = await db.getAll(sql, [schoolId]);
 
-      // Format for UI (Calculates "2 mins ago" etc.)
       return rows.map((row) {
-        final date = DateTime.parse(
-          (row['date'] as String?) ?? DateTime.now().toIso8601String(),
-        );
+        final date = DateTime.tryParse((row['date'] as String?) ?? '') ?? DateTime.now();
         final diff = DateTime.now().difference(date);
-        String timeLabel;
 
+        final String timeLabel;
         if (diff.inMinutes < 60) {
           timeLabel = '${diff.inMinutes} mins ago';
         } else if (diff.inHours < 24) {
@@ -99,8 +104,7 @@ class DashboardRepository {
         };
       }).toList();
     } catch (e) {
-      // PowerSync tables might not be ready yet
-      debugPrint('Error fetching recent activity from PowerSync: $e');
+      debugPrint('Error fetching recent activity: $e');
       return [];
     }
   }
@@ -109,41 +113,35 @@ class DashboardRepository {
   // 2. STATISTICS SCREEN (Charts & Analysis)
   // ===========================================================================
 
-  /// Fetches daily revenue for the last 7 days for the Line Chart.
-  /// Returns a Map of { 'MM-DD': amount }
   Future<List<Map<String, dynamic>>> getRevenueTrend(String schoolId) async {
     const sql = """
-      SELECT 
-        date(received_at) as day, 
-        sum(amount) as total 
-      FROM payments 
-      WHERE school_id = ? 
-      AND received_at >= date('now', '-7 days')
+      SELECT
+        date(received_at) as day,
+        sum(amount) as total
+      FROM payments
+      WHERE school_id = ?
+        AND datetime(received_at) >= datetime('now', '-7 days')
       GROUP BY day
       ORDER BY day ASC
     """;
-
-    return await db.getAll(sql, [schoolId]);
+    return db.getAll(sql, [schoolId]);
   }
 
-  /// Aggregates Debt by Grade Level for the Bar Chart.
   Future<List<Map<String, dynamic>>> getDebtByGrade(String schoolId) async {
-    // We join Students with Enrollments to get the grade_level
     const sql = """
-      SELECT 
-        e.grade_level as grade, 
-        sum(s.fees_owed) as amount 
+      SELECT
+        e.grade_level as grade,
+        sum(s.fees_owed) as amount
       FROM students s
       JOIN enrollments e ON s.id = e.student_id
-      WHERE s.school_id = ? AND e.is_active = 1
+      WHERE s.school_id = ?
+        AND e.is_active = 1
       GROUP BY e.grade_level
       ORDER BY amount DESC
     """;
-
-    return await db.getAll(sql, [schoolId]);
+    return db.getAll(sql, [schoolId]);
   }
 
-  /// Payment Method Breakdown (Cash vs EcoCash vs Bank)
   Future<Map<String, double>> getPaymentMethodStats(String schoolId) async {
     final rows = await db.getAll(
       "SELECT method, count(*) as count FROM payments WHERE school_id = ? GROUP BY method",
@@ -151,75 +149,46 @@ class DashboardRepository {
     );
 
     final Map<String, double> result = {};
-    for (var row in rows) {
-      result[row['method'] as String] = (row['count'] as num).toDouble();
+    for (final row in rows) {
+      final method = (row['method'] as String?) ?? 'UNKNOWN';
+      result[method] = (row['count'] as num?)?.toDouble() ?? 0.0;
     }
     return result;
   }
+
   // ===========================================================================
   // 3. NOTIFICATIONS (Live Streams)
   // ===========================================================================
 
-  /// WATCH: List of notifications (Real-time updates)
   Stream<List<LegendNotification>> watchNotifications(String schoolId) {
     return db
         .watch(
           "SELECT * FROM noti WHERE school_id = ? ORDER BY created_at DESC",
           parameters: [schoolId],
         )
-        .map((rows) {
-          return rows.map((row) => LegendNotification.fromRow(row)).toList();
-        });
+        .map((rows) => rows.map((r) => LegendNotification.fromRow(r)).toList());
   }
 
-  
-  /// WATCH: Count of unread notifications (For Badge)
   Stream<int> watchUnreadCount(String schoolId) {
     return db
         .watch(
           "SELECT count(*) as count FROM noti WHERE school_id = ? AND is_read = 0",
           parameters: [schoolId],
         )
-        .map((rows) => (rows.first['count'] as num).toInt());
+        .map((rows) => (rows.isEmpty) ? 0 : ((rows.first['count'] as num?)?.toInt() ?? 0));
   }
 
-  /// WRITE: Mark specific notification as read
-  Future<void> markAsRead(String notiId) async {
-    await db.execute("UPDATE noti SET is_read = 1 WHERE id = ?", [notiId]);
-  }
+  Future<void> markAsRead(String notiId) => db.execute("UPDATE noti SET is_read = 1 WHERE id = ?", [notiId]);
+  Future<void> markAllAsRead(String schoolId) => db.execute("UPDATE noti SET is_read = 1 WHERE school_id = ?", [schoolId]);
+  Future<void> clearAllNotifications(String schoolId) => db.execute("DELETE FROM noti WHERE school_id = ?", [schoolId]);
+  Future<void> deleteNotification(String id) => db.execute("DELETE FROM noti WHERE id = ?", [id]);
 
-  /// WRITE: Mark ALL as read
-  Future<void> markAllAsRead(String schoolId) async {
-    await db.execute("UPDATE noti SET is_read = 1 WHERE school_id = ?", [
-      schoolId,
-    ]);
-  }
-
-  /// WRITE: Clear all notifications
-  Future<void> clearAllNotifications(String schoolId) async {
-    await db.execute("DELETE FROM noti WHERE school_id = ?", [schoolId]);
-  }
-
-  // In lib/repositories/dashboard_repo.dart
-  Future<void> deleteNotification(String id) async {
-    await db.execute("DELETE FROM noti WHERE id = ?", [id]);
-  }
-
-  /// Fetches user profile from the profiles table
   Future<LegendProfile?> getUserProfile(String userId) async {
     try {
-      final result = await db.getOptional(
-        "SELECT * FROM profiles WHERE id = ?",
-        [userId],
-      );
-
-      if (result != null) {
-        return LegendProfile.fromRow(result);
-      }
-      return null;
+      final result = await db.getOptional("SELECT * FROM profiles WHERE id = ?", [userId]);
+      return result != null ? LegendProfile.fromRow(result) : null;
     } catch (e) {
-      // PowerSync table might not exist yet or data is incomplete
-      debugPrint('Error fetching user profile from PowerSync: $e');
+      debugPrint('Error fetching user profile: $e');
       return null;
     }
   }

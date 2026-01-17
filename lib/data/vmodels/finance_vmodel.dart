@@ -1,110 +1,87 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show ChangeNotifier, debugPrint;
 import 'package:legend/data/models/all_models.dart';
-import 'package:legend/data/repo/financial_repo.dart'; // Correct Repo Import
+import 'package:legend/data/repo/financial_repo.dart';
 import 'package:legend/data/services/auth/auth.dart';
+import 'package:uuid/uuid.dart';
 
-// =============================================================================
-// FINANCE VIEW MODEL
-// =============================================================================
 class FinanceViewModel extends ChangeNotifier {
   final FinanceRepository _financeRepo;
   final AuthService _authService;
+  final Uuid _uuid = const Uuid();
 
-  // ---------------------------------------------------------------------------
-  // STATE
-  // ---------------------------------------------------------------------------
   bool isLoading = true;
   String? error;
 
-  // Overview Stats
   double totalRevenue = 0.0;
   double pendingAmount = 0.0;
   int unpaidInvoiceCount = 0;
   double percentGrowth = 0.0;
 
-  // Chart Data
   List<double> monthlyCollections = [];
   List<String> monthLabels = [];
 
-  // Activity
   List<Map<String, dynamic>> recentActivity = [];
 
-  // Invoice Creation State
   bool isCreatingInvoice = false;
   String? invoiceCreationError;
 
-  // Payment Recording State
   bool isRecordingPayment = false;
   String? paymentRecordingError;
 
-  // Invoice Viewing
   Invoice? currentInvoice;
   List<InvoiceItem> currentInvoiceItems = [];
   bool isLoadingInvoice = false;
 
-  // ---------------------------------------------------------------------------
-  // CONSTRUCTOR
-  // ---------------------------------------------------------------------------
   FinanceViewModel(this._financeRepo, this._authService);
 
-  // ---------------------------------------------------------------------------
-  // INITIALIZATION
-  // ---------------------------------------------------------------------------
   Future<void> init() async {
     isLoading = true;
+    error = null;
     notifyListeners();
 
     try {
       final school = _authService.activeSchool;
       if (school == null) {
-        error = "Please log in to view finance data";
-        isLoading = false;
-        notifyListeners();
+        error = "No active school. Please log in again.";
         return;
       }
 
       await _loadOverviewStats(school.id);
       await _loadRecentActivity(school.id);
-
-      error = null;
     } catch (e) {
       error = e.toString();
-      debugPrint("Finance VM Init Error: $e");
+      debugPrint("FinanceViewModel.init error: $e");
     } finally {
       isLoading = false;
       notifyListeners();
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // OVERVIEW METHODS
-  // ---------------------------------------------------------------------------
   Future<void> _loadOverviewStats(String schoolId) async {
     final stats = await _financeRepo.getFinanceStats(schoolId);
 
-    totalRevenue = stats['totalRevenue'];
-    pendingAmount = stats['pendingAmount'];
-    unpaidInvoiceCount = stats['unpaidInvoiceCount'];
-    
-    // SAFETY: Ensure we don't get NaN or Infinity from DB
-    double rawGrowth = stats['percentGrowth'] ?? 0.0;
+    totalRevenue = (stats['totalRevenue'] as num?)?.toDouble() ?? 0.0;
+    pendingAmount = (stats['pendingAmount'] as num?)?.toDouble() ?? 0.0;
+    unpaidInvoiceCount = (stats['unpaidInvoiceCount'] as num?)?.toInt() ?? 0;
+
+    final rawGrowth = (stats['percentGrowth'] as num?)?.toDouble() ?? 0.0;
     percentGrowth = rawGrowth.isFinite ? rawGrowth : 0.0;
-    
-    monthlyCollections = List<double>.from(stats['monthlyCollections']);
-    monthLabels = List<String>.from(stats['monthLabels']);
+
+    monthlyCollections = List<double>.from(stats['monthlyCollections'] ?? const <double>[]);
+    monthLabels = List<String>.from(stats['monthLabels'] ?? const <String>[]);
   }
 
   Future<void> _loadRecentActivity(String schoolId) async {
     recentActivity = await _financeRepo.getRecentActivity(schoolId);
   }
 
-  // ---------------------------------------------------------------------------
-  // INVOICE OPERATIONS
-  // ---------------------------------------------------------------------------
   Future<void> createInvoice({
     required String studentId,
     required List<InvoiceItem> items,
     required DateTime dueDate,
+    String? termId,
+    String? title,
+    String? snapshotGrade,
   }) async {
     isCreatingInvoice = true;
     invoiceCreationError = null;
@@ -112,37 +89,57 @@ class FinanceViewModel extends ChangeNotifier {
 
     try {
       final school = _authService.activeSchool;
-      if (school == null) {
-        invoiceCreationError = "No active school found.";
-        isCreatingInvoice = false;
-        notifyListeners();
-        return;
+      if (school == null) throw Exception("No active school found.");
+
+      final invoiceId = _uuid.v4();
+
+      final computedTotal = items.fold<double>(
+        0.0,
+        (sum, it) => sum + (it.amount * (it.quantity <= 0 ? 1 : it.quantity)),
+      );
+
+      final invoiceNumber =
+          'INV-${DateTime.now().year}${DateTime.now().month.toString().padLeft(2, '0')}-${invoiceId.substring(0, 8)}';
+
+      final normalizedItems = <InvoiceItem>[];
+      for (final it in items) {
+        normalizedItems.add(
+          InvoiceItem(
+            id: it.id.isNotEmpty ? it.id : _uuid.v4(),
+            schoolId: school.id,
+            invoiceId: invoiceId,
+            feeStructureId: it.feeStructureId,
+            description: it.description,
+            amount: it.amount,
+            quantity: it.quantity <= 0 ? 1 : it.quantity,
+            createdAt: it.createdAt,
+          ),
+        );
       }
 
       await _financeRepo.createInvoice(
         Invoice(
-          id: 'inv_${DateTime.now().millisecondsSinceEpoch}',
+          id: invoiceId,
           schoolId: school.id,
           studentId: studentId,
-          invoiceNumber:
-              'INV-${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}',
+          invoiceNumber: invoiceNumber,
+          termId: termId,
           dueDate: dueDate,
           status: InvoiceStatus.draft,
-          totalAmount: items.fold(0.0, (sum, item) => sum + item.amount),
+          snapshotGrade: snapshotGrade,
+          totalAmount: computedTotal,
+          paidAmount: 0.0,
+          title: title,
+          createdAt: DateTime.now(),
         ),
-        items.map((item) => InvoiceItem(
-                id: 'inv_item_${DateTime.now().millisecondsSinceEpoch}_${items.indexOf(item)}',
-                schoolId: school.id,
-                invoiceId: '', // Will be set in repository
-                description: item.description,
-                amount: item.amount,
-        )).toList(),
+        normalizedItems,
       );
 
       await _loadOverviewStats(school.id);
+      await _loadRecentActivity(school.id);
     } catch (e) {
       invoiceCreationError = e.toString();
-      debugPrint("Create Invoice Error: $e");
+      debugPrint("FinanceViewModel.createInvoice error: $e");
     } finally {
       isCreatingInvoice = false;
       notifyListeners();
@@ -155,22 +152,19 @@ class FinanceViewModel extends ChangeNotifier {
 
     try {
       currentInvoice = await _financeRepo.getInvoiceById(invoiceId);
-      if (currentInvoice != null) {
-        currentInvoiceItems = await _financeRepo.getInvoiceItems(invoiceId);
-      } else {
-        currentInvoiceItems = [];
-      }
+      currentInvoiceItems = currentInvoice != null
+          ? await _financeRepo.getInvoiceItems(invoiceId)
+          : <InvoiceItem>[];
     } catch (e) {
-      debugPrint("Load Invoice Error: $e");
+      debugPrint("FinanceViewModel.loadInvoice error: $e");
+      currentInvoice = null;
+      currentInvoiceItems = [];
     } finally {
       isLoadingInvoice = false;
       notifyListeners();
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // PAYMENT OPERATIONS
-  // ---------------------------------------------------------------------------
   Future<void> recordPayment({
     required String studentId,
     required double amount,
@@ -183,16 +177,11 @@ class FinanceViewModel extends ChangeNotifier {
 
     try {
       final school = _authService.activeSchool;
-      if (school == null) {
-        paymentRecordingError = "No active school found.";
-        isRecordingPayment = false;
-        notifyListeners();
-        return;
-      }
+      if (school == null) throw Exception("No active school found.");
 
       await _financeRepo.recordPayment(
         Payment(
-          id: '', // Will be generated
+          id: _uuid.v4(),
           schoolId: school.id,
           studentId: studentId,
           amount: amount,
@@ -203,19 +192,15 @@ class FinanceViewModel extends ChangeNotifier {
       );
 
       await _loadOverviewStats(school.id);
+      await _loadRecentActivity(school.id);
     } catch (e) {
       paymentRecordingError = e.toString();
-      debugPrint("Record Payment Error: $e");
+      debugPrint("FinanceViewModel.recordPayment error: $e");
     } finally {
       isRecordingPayment = false;
       notifyListeners();
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // ACTIONS
-  // ---------------------------------------------------------------------------
-  Future<void> refresh() async {
-    await init();
-  }
+  Future<void> refresh() => init();
 }

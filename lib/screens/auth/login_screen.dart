@@ -1,5 +1,6 @@
 import 'package:google_fonts/google_fonts.dart';
-import 'package:legend/app_libs.dart'; // Standardized Import
+import 'package:legend/app_libs.dart';
+import 'package:legend/data/constants/app_routes.dart'; // Standardized Import
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});

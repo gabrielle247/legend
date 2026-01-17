@@ -4,24 +4,22 @@ void main() async {
   // ---------------------------------------------------------------------------
   // 1. SYSTEM INITIALIZATION
   // ---------------------------------------------------------------------------
-  await AppInit.initialize(); // Ensures Flutter binding & Env load
+  await AppInit.initialize();
   final supabaseClient = Supabase.instance.client;
 
   // ---------------------------------------------------------------------------
   // 2. BUILD DATA LAYER (Repositories)
   // ---------------------------------------------------------------------------
-  // These are stateless workers that talk to the DB/API.
   final authRepository = AuthRepository(supabaseClient);
   final schoolRepository = SchoolRepository(supabaseClient);
-  
+
   final dashboardRepository = DashboardRepository();
-  final studentRepository = StudentRepository(); // WIRED UP
-  final financeRepository = PowerSyncFinanceRepository(); // WIRED UP
+  final studentRepository = StudentRepository();
+  final financeRepository = PowerSyncFinanceRepository();
 
   // ---------------------------------------------------------------------------
-  // 3. BUILD SERVICE LAYER (Business Logic)
+  // 3. BUILD SERVICE LAYER
   // ---------------------------------------------------------------------------
-  // AuthService holds the "Session State" (Who is logged in?)
   final authService = AuthService(authRepository, schoolRepository);
 
   // ---------------------------------------------------------------------------
@@ -30,28 +28,25 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
-        // --- LEVEL 1: CORE SERVICES ---
-        // Accessible everywhere. Handles User Session.
+        // =========================
+        // CORE SERVICE
+        // =========================
         ChangeNotifierProvider<AuthService>(
           create: (_) => authService,
         ),
 
-        // --- LEVEL 2: REPOSITORIES ---
-        // Accessible to ViewModels for data fetching.
-        Provider<DashboardRepository>(
-          create: (_) => dashboardRepository,
-        ),
-        Provider<StudentRepository>(
-          create: (_) => studentRepository,
-        ),
-        Provider<FinanceRepository>(
-          create: (_) => financeRepository,
-        ),
+        // =========================
+        // REPOSITORIES
+        // =========================
+        Provider<AuthRepository>(create: (_) => authRepository),
+        Provider<DashboardRepository>(create: (_) => dashboardRepository),
+        Provider<StudentRepository>(create: (_) => studentRepository),
+        Provider<FinanceRepository>(create: (_) => financeRepository),
 
-        // --- LEVEL 3: GLOBAL VIEW MODELS ---
-        
-        // 1. SETTINGS VM
-        // Needs Auth & Dashboard Repo
+        // =========================
+        // GLOBAL VIEW MODELS
+        // =========================
+
         ChangeNotifierProvider<SettingsViewModel>(
           create: (context) => SettingsViewModel(
             context.read<AuthService>(),
@@ -59,8 +54,6 @@ void main() async {
           ),
         ),
 
-        // 2. FINANCE VM
-        // Needs Finance Repo & Auth Service
         ChangeNotifierProvider<FinanceViewModel>(
           create: (context) => FinanceViewModel(
             context.read<FinanceRepository>(),
@@ -68,37 +61,42 @@ void main() async {
           ),
         ),
 
-        // 3. DASHBOARD VM
-        // Needs Dashboard Repo & Auth Service
         ChangeNotifierProvider<DashboardViewModel>(
           create: (context) => DashboardViewModel(
-             context.read<DashboardRepository>(),
-             context.read<AuthService>(),
-          ),
-        ),
-
-        // 4. STUDENT LIST VM (The Tricky One)
-        // It needs 'schoolId' which lives inside AuthService.
-        // We use ProxyProvider to rebuild this VM if Auth changes.
-        ChangeNotifierProxyProvider<AuthService, StudentListViewModel>(
-          create: (context) => StudentListViewModel(
-            context.read<StudentRepository>(), 
-            context.read<AuthService>().activeSchool?.id ?? '',
-          ),
-          update: (context, auth, previous) => StudentListViewModel(
-            context.read<StudentRepository>(),
-            auth.activeSchool?.id ?? '',
-          ),
-        ),
-
-        ChangeNotifierProvider<StatsViewModel>(
-          create: (context) => StatsViewModel(
             context.read<DashboardRepository>(),
             context.read<AuthService>(),
           ),
         ),
 
-        Provider<AuthRepository>(create: (_) => authRepository), 
+        // Student list depends on schoolId (from AuthService)
+        ChangeNotifierProxyProvider<AuthService, StudentListViewModel>(
+          create: (context) => StudentListViewModel(
+            context.read<StudentRepository>(),
+            context.read<AuthService>().activeSchool?.id ?? '',
+          ),
+          update: (context, auth, previous) {
+            final schoolId = auth.activeSchool?.id ?? '';
+
+            // Reuse existing VM if schoolId unchanged
+            if (previous != null && previous.schoolId == schoolId) {
+              return previous;
+            }
+
+            return StudentListViewModel(
+              context.read<StudentRepository>(),
+              schoolId,
+            );
+          },
+        ),
+
+        // StatsViewModel now requires FinanceRepository too
+        ChangeNotifierProvider<StatsViewModel>(
+          create: (context) => StatsViewModel(
+            context.read<DashboardRepository>(),
+            context.read<FinanceRepository>(),
+            context.read<AuthService>(),
+          ),
+        ),
       ],
       child: const KwaLegendApp(),
     ),

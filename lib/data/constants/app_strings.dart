@@ -175,4 +175,24 @@ class AppStrings {
   static const String subContactDev = "Report bugs or request features";
 
   static const String itemLogout = "Log Out";
+
+    static const String backToLogin = "Back to Login";
+  
+  // Step 1: Request
+  static const String headRequest = "Forgot Password?";
+  static const String subRequest = "Enter your email address to receive a verification code.";
+  static const String btnSend = "Send Reset Code";
+  
+  // Step 2: Verify & Reset
+  static const String headReset = "Secure Your Account";
+  static const String subReset = "Enter the code sent to your email and set your new password.";
+  static const String hintCode = "123456";
+  static const String btnReset = "Reset Password";
+  static const String resendLink = "Didn't receive code? Resend";
+  
+  // Messages
+  static const String msgSent = "Code sent to your email";
+  static const String msgSuccess = "Password reset successfully. Please login.";
+  static const String errMatch = "Passwords do not match";
+  static const String errCode = "Invalid code format";
 }

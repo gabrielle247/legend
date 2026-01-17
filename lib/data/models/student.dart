@@ -25,10 +25,16 @@ class Student {
   // Cached Financials (Quick access without joining ledger)
   final double feesOwed;
 
+  // Add this field
+final String billingCycle; // MONTHLY / TERMLY / YEARLY
+
   // Audit
   final DateTime? createdAt;
 
   Student({
+    // Add to constructor (default TERMLY)
+this.billingCycle = 'TERMLY',
+
     required this.id,
     required this.schoolId,
     required this.firstName,
@@ -66,6 +72,8 @@ class Student {
       guardianRelationship: row['guardian_relationship'] as String?,
       feesOwed: (row['fees_owed'] as num?)?.toDouble() ?? 0.0,
       createdAt: row['created_at'] != null ? DateTime.tryParse(row['created_at']) : null,
+      // Add to fromRow(...)
+billingCycle: (row['billing_cycle'] as String?) ?? 'TERMLY',
     );
   }
 
@@ -86,6 +94,7 @@ class Student {
       'guardian_email': guardianEmail,
       'guardian_relationship': guardianRelationship,
       // 'fees_owed' is usually calculated or updated via triggers, not direct UI edit
+      'billing_cycle': billingCycle,
     };
   }
 

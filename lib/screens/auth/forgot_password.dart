@@ -1,31 +1,10 @@
-import 'package:google_fonts/google_fonts.dart';
 import 'package:legend/app_libs.dart';
+import 'package:legend/data/constants/app_routes.dart';
 
 // -----------------------------------------------------------------------------
 // 1. LOCAL STRINGS
 // -----------------------------------------------------------------------------
-class _ForgotStrings {
-  _ForgotStrings();
-  static const String backToLogin = "Back to Login";
-  
-  // Step 1: Request
-  static const String headRequest = "Forgot Password?";
-  static const String subRequest = "Enter your email address to receive a verification code.";
-  static const String btnSend = "Send Reset Code";
-  
-  // Step 2: Verify & Reset
-  static const String headReset = "Secure Your Account";
-  static const String subReset = "Enter the code sent to your email and set your new password.";
-  static const String hintCode = "123456";
-  static const String btnReset = "Reset Password";
-  static const String resendLink = "Didn't receive code? Resend";
-  
-  // Messages
-  static const String msgSent = "Code sent to your email";
-  static const String msgSuccess = "Password reset successfully. Please login.";
-  static const String errMatch = "Passwords do not match";
-  static const String errCode = "Invalid code format";
-}
+
 
 // -----------------------------------------------------------------------------
 // 2. SCREEN IMPLEMENTATION
@@ -89,7 +68,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           _isLoading = false;
           _currentStep = 1; // Move to next step
         });
-        _showSnack(_ForgotStrings.msgSent);
+        _showSnack(AppStrings.msgSent);
       }
     } catch (e) {
       if (mounted) {
@@ -108,11 +87,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
     // Validation
     if (code.length != 6) {
-       _showSnack(_ForgotStrings.errCode, isError: true);
+       _showSnack(AppStrings.errCode, isError: true);
       return;
     }
     if (pass != confirm) {
-       _showSnack(_ForgotStrings.errMatch, isError: true);
+       _showSnack(AppStrings.errMatch, isError: true);
       return;
     }
     if (pass.length < 6) {
@@ -133,7 +112,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
       if (mounted) {
         setState(() => _isLoading = false);
-        _showSnack(_ForgotStrings.msgSuccess);
+        _showSnack(AppStrings.msgSuccess);
         context.go(AppRoutes.login); 
       }
     } catch (e) {
@@ -224,7 +203,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   children: [
                     const SizedBox(height: 8),
                     Text(
-                      _currentStep == 0 ? _ForgotStrings.headRequest : _ForgotStrings.headReset,
+                      _currentStep == 0 ? AppStrings.headRequest : AppStrings.headReset,
                       textAlign: TextAlign.center,
                       style: GoogleFonts.jetBrainsMono(
                         fontSize: 22,
@@ -234,7 +213,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      _currentStep == 0 ? _ForgotStrings.subRequest : _ForgotStrings.subReset,
+                      _currentStep == 0 ? AppStrings.subRequest : AppStrings.subReset,
                       textAlign: TextAlign.center,
                       style: const TextStyle(color: AppColors.textGrey, fontSize: 14),
                     ),
@@ -263,7 +242,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           ),
                           child: _isLoading 
                               ? const CircularProgressIndicator(color: Colors.white)
-                              : const Text(_ForgotStrings.btnSend, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                              : const Text(AppStrings.btnSend, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                         ),
                       ),
                     ],
@@ -316,14 +295,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           ),
                           child: _isLoading 
                               ? const CircularProgressIndicator(color: Colors.white)
-                              : const Text(_ForgotStrings.btnReset, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                              : const Text(AppStrings.btnReset, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                         ),
                       ),
                       
                       const SizedBox(height: 16),
                       TextButton(
                         onPressed: _handleSendCode, // Resend logic reuses step 1
-                        child: const Text(_ForgotStrings.resendLink, style: TextStyle(color: AppColors.primaryBlueLight)),
+                        child: const Text(AppStrings.resendLink, style: TextStyle(color: AppColors.primaryBlueLight)),
                       ),
                     ],
 
@@ -333,7 +312,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     GestureDetector(
                       onTap: () => context.go(AppRoutes.login),
                       child: const Text(
-                        _ForgotStrings.backToLogin,
+                        AppStrings.backToLogin,
                         style: TextStyle(
                           color: AppColors.textGrey,
                           fontWeight: FontWeight.bold,

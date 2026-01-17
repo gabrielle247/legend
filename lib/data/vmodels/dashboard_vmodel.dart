@@ -1,16 +1,12 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show ChangeNotifier, debugPrint;
 import 'package:legend/data/models/all_models.dart';
 import 'package:legend/data/repo/dashboard_repo.dart';
 import 'package:legend/data/services/auth/auth.dart';
-import 'package:legend/data/services/database_serv.dart'; // To init DB
 
 class DashboardViewModel extends ChangeNotifier {
   final DashboardRepository _repo;
   final AuthService _authService;
 
-  // ---------------------------------------------------------------------------
-  // STATE (Data the UI needs)
-  // ---------------------------------------------------------------------------
   bool isLoading = true;
   String? error;
 
@@ -23,49 +19,31 @@ class DashboardViewModel extends ChangeNotifier {
   );
   List<Map<String, dynamic>> recentActivity = [];
 
-  // Constructor Injection
   DashboardViewModel(this._repo, this._authService);
 
-  // ---------------------------------------------------------------------------
-  // INITIALIZATION (The Engine Start)
-  // ---------------------------------------------------------------------------
   Future<void> init() async {
     isLoading = true;
-    notifyListeners(); // Tell UI to show spinner
+    error = null;
+    notifyListeners();
 
     try {
-      // 1. Get Current Context (User & School)
       final user = _authService.user;
       final school = _authService.activeSchool;
+      if (user == null || school == null) throw Exception("Session invalid.");
 
-      if (user == null || school == null) {
-        throw Exception("Session invalid. Please login again.");
-      }
-
-      // 2. Ignite the Offline Database (If not already running)
-      // PowerSync is already connected in AuthService.login()
-
-      // 3. Parallel Data Fetching (Maximum Efficiency)
-      // We run all independent queries at the same time.
       await Future.wait([
         _loadProfile(user.id),
         _loadStats(school.id),
         _loadActivity(school.id),
       ]);
-
-      error = null;
     } catch (e) {
       error = e.toString();
-      debugPrint("Dashboard VM Error: $e");
+      debugPrint("DashboardViewModel.init error: $e");
     } finally {
       isLoading = false;
-      notifyListeners(); // Tell UI we are ready
+      notifyListeners();
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // HELPER METHODS (Clean Logic)
-  // ---------------------------------------------------------------------------
 
   Future<void> _loadProfile(String userId) async {
     profile = await _repo.getUserProfile(userId);
@@ -79,17 +57,5 @@ class DashboardViewModel extends ChangeNotifier {
     recentActivity = await _repo.getRecentActivity(schoolId);
   }
 
-  // ---------------------------------------------------------------------------
-  // ACTIONS (User Interactions)
-  // ---------------------------------------------------------------------------
-
-  Future<void> refresh() async {
-    await init();
-  }
-
-  // Called when user logs out to prevent memory leaks or open connections
-  Future<void> disconnect() async {
-    // FIXED: Use close() instead of disconnect() to match database service API
-    await DatabaseService().close();
-  }
+  Future<void> refresh() => init();
 }

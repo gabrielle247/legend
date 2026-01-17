@@ -1,11 +1,8 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show ChangeNotifier;
 import 'package:legend/data/models/all_models.dart';
-import 'package:legend/data/repo/financial_repo.dart'; 
-import 'package:legend/data/repo/student_repo.dart';   
+import 'package:legend/data/repo/financial_repo.dart';
+import 'package:legend/data/repo/student_repo.dart';
 
-// =============================================================================
-// STUDENT LIST VIEW MODEL
-// =============================================================================
 class StudentListViewModel extends ChangeNotifier {
   final StudentRepository _repo;
   final String schoolId;
@@ -28,31 +25,29 @@ class StudentListViewModel extends ChangeNotifier {
     try {
       _students = await _repo.getStudents(schoolId);
     } catch (e) {
-      _error = "Failed to load students: ${e.toString()}";
+      _error = "Failed to load students: $e";
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
+  Future<void> refresh() => loadStudents();
+
   Future<void> deleteStudent(String id) async {
     try {
       await _repo.deleteStudent(id);
-      _students.removeWhere((student) => student.id == id);
+      _students.removeWhere((s) => s.id == id);
       notifyListeners();
     } catch (e) {
-      _error = "Failed to delete student: ${e.toString()}";
+      _error = "Failed to delete student: $e";
       notifyListeners();
     }
   }
 }
 
-// =============================================================================
-// STUDENT DETAIL VIEW MODEL (Edit & View Only)
-// =============================================================================
 class StudentDetailViewModel extends ChangeNotifier {
   final StudentRepository _repo;
-  final String schoolId;
 
   Student? _student;
   List<Enrollment> _enrollments = [];
@@ -64,7 +59,7 @@ class StudentDetailViewModel extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
 
-  StudentDetailViewModel(this._repo, this.schoolId);
+  StudentDetailViewModel(this._repo);
 
   Future<void> loadStudent(String id) async {
     _isLoading = true;
@@ -73,11 +68,9 @@ class StudentDetailViewModel extends ChangeNotifier {
 
     try {
       _student = await _repo.getStudentById(id);
-      if (_student != null) {
-        _enrollments = await _repo.getEnrollments(id);
-      }
+      _enrollments = _student != null ? await _repo.getEnrollments(id) : [];
     } catch (e) {
-      _error = "Failed to load student: ${e.toString()}";
+      _error = "Failed to load student: $e";
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -90,14 +83,11 @@ class StudentDetailViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      if (student.id.isEmpty) {
-        throw Exception("Cannot create student here. Use the Registration flow.");
-      } else {
-        await _repo.updateStudent(student);
-        _student = student; 
-      }
+      if (student.id.isEmpty) throw Exception("Cannot create here. Use registration flow.");
+      await _repo.updateStudent(student);
+      _student = student;
     } catch (e) {
-      _error = "Failed to save student: ${e.toString()}";
+      _error = "Failed to save student: $e";
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -105,13 +95,9 @@ class StudentDetailViewModel extends ChangeNotifier {
   }
 }
 
-// =============================================================================
-// STUDENT FINANCE VIEW MODEL
-// =============================================================================
 class StudentFinanceViewModel extends ChangeNotifier {
   final FinanceRepository _repo;
   final String studentId;
-  final String schoolId;
 
   List<Invoice> _invoices = [];
   List<Payment> _payments = [];
@@ -125,7 +111,7 @@ class StudentFinanceViewModel extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
 
-  StudentFinanceViewModel(this._repo, this.studentId, this.schoolId);
+  StudentFinanceViewModel(this._repo, this.studentId, String schoolId);
 
   Future<void> loadFinanceData() async {
     _isLoading = true;
@@ -139,16 +125,18 @@ class StudentFinanceViewModel extends ChangeNotifier {
         _repo.getStudentLedger(studentId),
       ]);
 
-      _invoices = (results[0] as List<Invoice>);
-      _payments = (results[1] as List<Payment>);
-      _ledger = (results[2] as List<LedgerEntry>);
+      _invoices = results[0] as List<Invoice>;
+      _payments = results[1] as List<Payment>;
+      _ledger = results[2] as List<LedgerEntry>;
     } catch (e) {
-      _error = "Failed to load finance data: ${e.toString()}";
+      _error = "Failed to load finance data: $e";
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
+
+  Future<void> refresh() => loadFinanceData();
 
   Future<void> createInvoice(Invoice invoice, List<InvoiceItem> items) async {
     _isLoading = true;
@@ -159,10 +147,10 @@ class StudentFinanceViewModel extends ChangeNotifier {
       await _repo.createInvoice(invoice, items);
       await loadFinanceData();
     } catch (e) {
-      _error = "Failed to create invoice: ${e.toString()}";
-      notifyListeners();
+      _error = "Failed to create invoice: $e";
     } finally {
       _isLoading = false;
+      notifyListeners();
     }
   }
 
@@ -173,12 +161,12 @@ class StudentFinanceViewModel extends ChangeNotifier {
 
     try {
       await _repo.recordPayment(payment);
-      await loadFinanceData(); 
+      await loadFinanceData();
     } catch (e) {
-      _error = "Failed to record payment: ${e.toString()}";
-      notifyListeners();
+      _error = "Failed to record payment: $e";
     } finally {
       _isLoading = false;
+      notifyListeners();
     }
   }
 }

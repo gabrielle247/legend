@@ -1,12 +1,10 @@
 import 'package:fl_chart/fl_chart.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show ChangeNotifier, debugPrint;
 import 'package:legend/data/models/all_models.dart';
 import 'package:legend/data/repo/dashboard_repo.dart';
+import 'package:legend/data/repo/financial_repo.dart';
 import 'package:legend/data/services/auth/auth.dart';
 
-// -----------------------------------------------------------------------------
-// 1. THE DATA CONTAINER (State Object)
-// -----------------------------------------------------------------------------
 class StatsData {
   final double totalRevenue;
   final double outstandingDebt;
@@ -25,26 +23,21 @@ class StatsData {
   });
 }
 
-// -----------------------------------------------------------------------------
-// 2. THE VIEW MODEL (Logic & State Management)
-// -----------------------------------------------------------------------------
 class StatsViewModel extends ChangeNotifier {
-  final DashboardRepository _repo;
+  final DashboardRepository _dashboardRepo;
+  final FinanceRepository _financeRepo;
   final AuthService _authService;
 
-  // State
   bool _isLoading = false;
   String? _error;
   StatsData _data = StatsData();
 
-  // Getters
   bool get isLoading => _isLoading;
   String? get error => _error;
   StatsData get data => _data;
 
-  StatsViewModel(this._repo, this._authService);
+  StatsViewModel(this._dashboardRepo, this._financeRepo, this._authService);
 
-  /// Loads all analytics data from the local database
   Future<void> loadStats() async {
     _isLoading = true;
     _error = null;
@@ -52,58 +45,50 @@ class StatsViewModel extends ChangeNotifier {
 
     try {
       final school = _authService.activeSchool;
-      if (school == null) {
-        throw Exception("No active school found.");
-      }
+      if (school == null) throw Exception("No active school found.");
 
-      // 1. Parallel Fetching for Performance
+      // Single source of truth:
+      // - totals come from finance stats
+      // - charts come from dashboard repo trend queries
       final results = await Future.wait([
-        _repo.getRevenueTrend(school.id),       // [0]
-        _repo.getDebtByGrade(school.id),        // [1]
-        _repo.getPaymentMethodStats(school.id), // [2]
-        _repo.getDashboardStats(school.id),     // [3]
+        _dashboardRepo.getRevenueTrend(school.id),
+        _dashboardRepo.getDebtByGrade(school.id),
+        _dashboardRepo.getPaymentMethodStats(school.id),
+        _dashboardRepo.getDashboardStats(school.id),
+        _financeRepo.getFinanceStats(school.id),
       ]);
 
       final revenueRows = results[0] as List<Map<String, dynamic>>;
       final debtByGrade = results[1] as List<Map<String, dynamic>>;
       final paymentMethods = results[2] as Map<String, double>;
       final dashboardStats = results[3] as DashboardStats;
+      final financeStats = results[4] as Map<String, dynamic>;
 
-      // 2. Process Revenue Trend (Convert SQL Rows -> Chart Spots)
-      double calculatedRevenue = 0;
-      List<FlSpot> spots = [];
-      
+      // Chart spots (7 days trend)
+      final List<FlSpot> spots = [];
       for (int i = 0; i < revenueRows.length; i++) {
         final row = revenueRows[i];
-        final amount = (row['total'] as num).toDouble();
-        calculatedRevenue += amount;
-        // X: Day Index, Y: Amount in Thousands (k)
-        spots.add(FlSpot(i.toDouble(), amount / 1000)); 
+        final amount = (row['total'] as num?)?.toDouble() ?? 0.0;
+        spots.add(FlSpot(i.toDouble(), amount / 1000.0));
       }
-
       if (spots.isEmpty) spots.add(const FlSpot(0, 0));
 
-      // 3. Update State
       _data = StatsData(
-        totalRevenue: calculatedRevenue,
+        totalRevenue: (financeStats['totalRevenue'] as num?)?.toDouble() ?? 0.0,
         outstandingDebt: dashboardStats.totalOwed,
         activeStudents: dashboardStats.totalStudents,
         revenueTrend: spots,
         debtByGrade: debtByGrade,
         paymentMethods: paymentMethods,
       );
-
     } catch (e) {
       _error = e.toString();
-      debugPrint("StatsViewModel Error: $e");
+      debugPrint("StatsViewModel.loadStats error: $e");
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  /// Reloads data (e.g., for Pull-to-Refresh)
-  Future<void> refresh() async {
-    await loadStats();
-  }
+  Future<void> refresh() => loadStats();
 }

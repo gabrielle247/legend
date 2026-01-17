@@ -1,4 +1,5 @@
 import 'package:legend/app_libs.dart';
+import 'package:legend/data/constants/app_routes.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});

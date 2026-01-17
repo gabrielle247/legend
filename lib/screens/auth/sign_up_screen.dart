@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:legend/app_libs.dart'; // WIRED: Access Repos & Constants
+import 'package:legend/app_libs.dart';
+import 'package:legend/data/constants/app_routes.dart'; // WIRED: Access Repos & Constants
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});

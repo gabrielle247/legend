@@ -1,4 +1,5 @@
-import 'package:legend/app_libs.dart'; // Imports everything
+import 'package:legend/app_libs.dart';
+import 'package:legend/data/constants/app_routes.dart'; // Imports everything
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});

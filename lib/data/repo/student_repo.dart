@@ -1,9 +1,5 @@
-import 'dart:convert';
-import 'package:flutter/foundation.dart';
-import 'package:legend/data/models/all_models.dart'; 
-import 'package:legend/data/services/database_serv.dart'; 
+import 'package:legend/app_libs.dart';
 import 'package:powersync/powersync.dart';
-import 'package:uuid/uuid.dart';
 
 class StudentException implements Exception {
   final String message;
@@ -13,36 +9,32 @@ class StudentException implements Exception {
 }
 
 class StudentRepository {
-  // Access DB instance via Singleton
   PowerSyncDatabase get _db => DatabaseService().db;
-  
   final _uuid = const Uuid();
 
   // ---------------------------------------------------------------------------
-  // 1. READINESS & CONFIG (The Guardrails)
+  // 1) READINESS & CONFIG
   // ---------------------------------------------------------------------------
 
   Future<String?> checkSchoolReadiness(String schoolId) async {
     try {
-      // Check 1: Active Academic Year
       final yearResult = await _db.get(
         "SELECT count(*) as count FROM academic_years WHERE school_id = ? AND is_active = 1",
         [schoolId],
       );
-      if ((yearResult['count'] as int) == 0) {
+      if (((yearResult['count'] as num?)?.toInt() ?? 0) == 0) {
         return "No Active Academic Year found. Please go to Settings > Academic Year.";
       }
 
-      // Check 2: Classes Exists (Using 'classes' table)
       final classResult = await _db.get(
         "SELECT count(*) as count FROM classes WHERE school_id = ?",
         [schoolId],
       );
-      if ((classResult['count'] as int) == 0) {
+      if (((classResult['count'] as num?)?.toInt() ?? 0) == 0) {
         return "No Classes defined. Please go to Settings > Classes.";
       }
 
-      return null; 
+      return null;
     } catch (e) {
       return "System Error checking readiness: $e";
     }
@@ -57,11 +49,12 @@ class StudentRepository {
   }
 
   Future<List<String>> getBillingCycles() async {
+    // UI labels. DB values are MONTHLY/TERMLY/YEARLY.
     return ['Monthly', 'Termly', 'Yearly'];
   }
 
   // ---------------------------------------------------------------------------
-  // 2. STANDARD CRUD
+  // 2) STANDARD CRUD
   // ---------------------------------------------------------------------------
 
   Future<List<Student>> getStudents(String schoolId) async {
@@ -94,16 +87,26 @@ class StudentRepository {
     }
   }
 
-  Future<List<Enrollment>> getEnrollments(String studentId) async {
+  Future<List<Enrollment>> getEnrollments(
+    String studentId, {
+    bool includeInactive = true,
+  }) async {
     try {
-      final result = await _db.getAll(
+      final sql = includeInactive
+          ? '''
+          SELECT *
+          FROM enrollments
+          WHERE student_id = ?
+          ORDER BY is_active DESC, created_at DESC
         '''
-        SELECT * FROM enrollments 
-        WHERE student_id = ? AND is_active = 1
-        ORDER BY created_at DESC
-        ''',
-        [studentId],
-      );
+          : '''
+          SELECT *
+          FROM enrollments
+          WHERE student_id = ? AND is_active = 1
+          ORDER BY created_at DESC
+        ''';
+
+      final result = await _db.getAll(sql, [studentId]);
       return result.map((row) => Enrollment.fromRow(row)).toList();
     } catch (e) {
       debugPrint("Error fetching enrollments: $e");
@@ -139,7 +142,7 @@ class StudentRepository {
           student.guardianName,
           student.guardianPhone,
           student.guardianEmail,
-          student.type.name.toUpperCase(),
+          student.type.name.toUpperCase(), // ACADEMY/PRIVATE
           student.id,
         ],
       );
@@ -149,16 +152,13 @@ class StudentRepository {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // 3. COMPLEX REGISTRATION
-  // ---------------------------------------------------------------------------
-  
   Future<void> registerStudent({
     required String schoolId,
     required String firstName,
     required String lastName,
     required String gender,
-    required String type, 
+    required String type,
+    required String billingCycle,
     required String guardianName,
     required String guardianPhone,
     String? guardianEmail,
@@ -166,120 +166,383 @@ class StudentRepository {
     required double openingBalance,
     String? debtDescription,
     required List<String> subjects,
+    required double initialPayment,
+    required String paymentMethod,
   }) async {
-    debugPrint("🚀 Starting Registration for $firstName $lastName...");
+    debugPrint("🚀 Starting Atomic Registration & Billing...");
+
+    // Hard guards (no UI trust)
+    final ob = openingBalance.isFinite ? openingBalance : 0.0;
+    final ip = initialPayment.isFinite ? initialPayment : 0.0;
+
+    if (ob < 0) {
+      throw StudentException("Opening Balance cannot be negative.");
+    }
+    if (ip < 0) {
+      throw StudentException("Initial Payment cannot be negative.");
+    }
+    if (ob == 0 && ip > 0) {
+      throw StudentException(
+        "Initial Payment requires an Opening Balance invoice. Set Opening Balance > 0 or record payment later.",
+      );
+    }
+    if (ob > 0 && ip > ob) {
+      throw StudentException(
+        "Initial Payment cannot exceed the Opening Balance.",
+      );
+    }
+    if (subjects.isEmpty) {
+      throw StudentException("At least one subject must be selected.");
+    }
 
     await _db.writeTransaction((tx) async {
-      // A. GET ACTIVE YEAR
-      final yearRow = await tx.get(
+      // 1) DEPENDENCIES
+      final activeYearRow = await tx.getOptional(
         "SELECT id FROM academic_years WHERE school_id = ? AND is_active = 1 LIMIT 1",
         [schoolId],
       );
-      final String activeYearId = yearRow['id'] as String;
+      if (activeYearRow == null) {
+        throw StudentException(
+          "Cannot register: No Active Academic Year found.",
+        );
+      }
+      final String activeYearId = activeYearRow['id'] as String;
 
-      // B. GET GRADE NAME (Critical for Supabase Sync)
-      // This fetches the actual name (e.g. "Form 1") using the class ID
+      final activeTermRow = await tx.getOptional(
+        "SELECT id FROM terms WHERE school_id = ? AND is_active = 1 LIMIT 1",
+        [schoolId],
+      );
+      final String? activeTermId = activeTermRow?['id'] as String?;
+
+      if (ob > 0 && activeTermId == null) {
+        throw StudentException(
+          "Cannot create opening balance: No Active Term found. Go to Settings > Terms.",
+        );
+      }
+
       final gradeRow = await tx.get(
-        """
-        SELECT g.name as grade_name 
-        FROM classes c 
-        JOIN grades g ON c.grade_id = g.id 
-        WHERE c.id = ?
-        """,
-        [classId]
+        "SELECT g.name as grade_name FROM classes c JOIN grades g ON c.grade_id = g.id WHERE c.id = ?",
+        [classId],
       );
-      final String gradeLevel = gradeRow['grade_name'] as String;
+      final String gradeLevel =
+          (gradeRow['grade_name'] as String?) ?? 'Unknown';
 
-      // C. GENERATE IDS
-      final String studentId = _uuid.v4(); 
-      final String admissionNumber = "ADM-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}";
+      // 2) IDS
+      final String studentId = _uuid.v4();
+      final String enrollmentId = _uuid.v4();
+      final String admissionNumber =
+          "STU-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}";
 
-      // D. INSERT STUDENT
+      // Use UTC to avoid “date()” issues across devices
+      final now = DateTime.now().toUtc();
+      final nowIso = now.toIso8601String();
+
+      // 3) NORMALIZE ENUM STRINGS (DB CHECK CONSTRAINT SAFE)
+      final String studentTypeDb = _normStudentType(type);
+      final String billingCycleDb = _normBillingCycle(billingCycle);
+      final String genderDb = _normGender(gender);
+
+      final String? guardianEmailDb = (guardianEmail ?? '').trim().isEmpty
+          ? null
+          : guardianEmail!.trim();
+
+      // 4) INSERT STUDENT
       await tx.execute(
         """
-        INSERT INTO students (
-          id, school_id, first_name, last_name, gender, admission_number, 
-          guardian_name, guardian_phone, guardian_email, student_type, status, created_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?)
-        """,
+      INSERT INTO students (
+        id, school_id, first_name, last_name, gender, admission_number,
+        guardian_name, guardian_phone, guardian_email, student_type,
+        billing_cycle, status, fees_owed, created_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 0, ?)
+      """,
         [
-          studentId, schoolId, firstName, lastName, gender, admissionNumber, 
-          guardianName, guardianPhone, guardianEmail, 
-          type, DateTime.now().toIso8601String()
+          studentId,
+          schoolId,
+          firstName.trim(),
+          lastName.trim(),
+          genderDb,
+          admissionNumber,
+          guardianName.trim(),
+          guardianPhone.trim(),
+          guardianEmailDb,
+          studentTypeDb,
+          billingCycleDb,
+          nowIso,
         ],
       );
 
-      // E. INSERT ENROLLMENT (Includes grade_level string and subjects JSON)
-      final enrollmentId = _uuid.v4();
+      // 5) INSERT ENROLLMENT (subjects JSON)
       final subjectsJson = jsonEncode(subjects);
-
       await tx.execute(
         """
-        INSERT INTO enrollments (
-          id, school_id, student_id, class_id, academic_year_id, 
-          enrollment_date, subjects, grade_level, is_active, created_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
-        """,
+      INSERT INTO enrollments (
+        id, school_id, student_id, class_id, academic_year_id,
+        enrollment_date, subjects, grade_level, is_active, created_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+      """,
         [
-          enrollmentId, 
-          schoolId, 
-          studentId, 
-          classId, 
-          activeYearId, 
-          DateTime.now().toIso8601String(),
-          subjectsJson, 
-          gradeLevel, // ✅ Passing the required String
-          DateTime.now().toIso8601String()
+          enrollmentId,
+          schoolId,
+          studentId,
+          classId,
+          activeYearId,
+          nowIso,
+          subjectsJson,
+          gradeLevel,
+          nowIso,
         ],
       );
 
-      // F. HANDLE OPENING BALANCE
-      if (openingBalance > 0) {
-        debugPrint("💰 Processing Opening Balance: $openingBalance");
-        
-        final invoiceId = _uuid.v4();
+      String? openingInvoiceId;
+
+      // 6) OPENING BALANCE (DEBIT -> INVOICE + LEDGER + STUDENT FEES_OWED)
+      if (ob > 0) {
+        openingInvoiceId = _uuid.v4();
+
+        // IMPORTANT: must be in your enum universe
+        const openingStatus = 'PENDING';
+
+        final invoiceNum =
+            'INV-${now.year}-${now.month.toString().padLeft(2, '0')}-${now.millisecondsSinceEpoch.toString().substring(9)}';
+
         await tx.execute(
           """
-          INSERT INTO invoices (id, school_id, student_id, term_id, total_amount, paid_amount, status, due_date, title, created_at)
-          VALUES (?, ?, ?, ?, ?, 0, 'OVERDUE', ?, ?, ?)
-          """,
+        INSERT INTO invoices (
+          id, school_id, student_id, term_id, invoice_number,
+          total_amount, paid_amount, status, due_date, title, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
+        """,
           [
-             invoiceId, 
-             schoolId, 
-             studentId, 
-             activeYearId, 
-             openingBalance,
-             DateTime.now().toIso8601String(),
-             "Opening Balance",
-             DateTime.now().toIso8601String()
+            openingInvoiceId,
+            schoolId,
+            studentId,
+            activeTermId,
+            invoiceNum,
+            ob,
+            openingStatus,
+            nowIso, // due_date (you can change later to policy-based due dates)
+            "Opening Balance",
+            nowIso,
           ],
         );
 
         await tx.execute(
           """
-          INSERT INTO invoice_items (id, invoice_id, description, amount)
-          VALUES (?, ?, ?, ?)
+        INSERT INTO invoice_items (
+          id, school_id, invoice_id, fee_structure_id,
+          description, amount, quantity, created_at
+        )
+        VALUES (?, ?, ?, NULL, ?, ?, 1, ?)
+        """,
+          [
+            _uuid.v4(),
+            schoolId,
+            openingInvoiceId,
+            (debtDescription ?? '').trim().isEmpty
+                ? "Previous Debt"
+                : debtDescription!.trim(),
+            ob,
+            nowIso,
+          ],
+        );
+
+        await tx.execute(
+          """
+        INSERT INTO ledger (
+          id, school_id, student_id, type, category, amount,
+          invoice_id, payment_id, description, occurred_at
+        )
+        VALUES (?, ?, ?, 'DEBIT', 'INVOICE', ?, ?, NULL, ?, ?)
+        """,
+          [
+            _uuid.v4(),
+            schoolId,
+            studentId,
+            ob,
+            openingInvoiceId,
+            "Opening Balance Raised",
+            nowIso,
+          ],
+        );
+
+        // fees_owed increases by opening balance
+        await tx.execute(
+          "UPDATE students SET fees_owed = COALESCE(fees_owed, 0) + ? WHERE id = ?",
+          [ob, studentId],
+        );
+      }
+
+      // 7) INITIAL PAYMENT (CREDIT -> PAYMENT + LEDGER + APPLY TO OPENING INVOICE)
+      if (ip > 0) {
+        final paymentId = _uuid.v4();
+        final methodDb = _normPaymentMethod(paymentMethod);
+
+        await tx.execute(
+          """
+        INSERT INTO payments (
+          id, school_id, student_id, amount, method, reference_code, received_at
+        )
+        VALUES (?, ?, ?, ?, ?, 'INITIAL_DEPOSIT', ?)
+        """,
+          [paymentId, schoolId, studentId, ip, methodDb, nowIso],
+        );
+
+        // Link this credit to the opening invoice via ledger if we have one
+        await tx.execute(
+          """
+        INSERT INTO ledger (
+          id, school_id, student_id, type, category, amount,
+          invoice_id, payment_id, description, occurred_at
+        )
+        VALUES (?, ?, ?, 'CREDIT', 'PAYMENT', ?, ?, ?, ?, ?)
+        """,
+          [
+            _uuid.v4(),
+            schoolId,
+            studentId,
+            ip,
+            openingInvoiceId, // may be null (but we guard against ip>0 when ob==0)
+            paymentId,
+            "Initial Deposit via $methodDb",
+            nowIso,
+          ],
+        );
+
+        // Apply to invoice: paid_amount + status
+        if (openingInvoiceId != null) {
+          final newPaid = ip;
+          final newStatus = (newPaid >= ob) ? 'PAID' : 'PARTIAL';
+
+          await tx.execute(
+            """
+          UPDATE invoices
+          SET paid_amount = COALESCE(paid_amount, 0) + ?,
+              status = ?
+          WHERE id = ?
           """,
-          [_uuid.v4(), invoiceId, debtDescription ?? "Previous Debt", openingBalance],
+            [ip, newStatus, openingInvoiceId],
+          );
+        }
+
+        // Reduce fees_owed (never negative)
+        await tx.execute(
+          """
+        UPDATE students
+        SET fees_owed = CASE
+          WHEN COALESCE(fees_owed, 0) - ? < 0 THEN 0
+          ELSE COALESCE(fees_owed, 0) - ?
+        END
+        WHERE id = ?
+        """,
+          [ip, ip, studentId],
         );
       }
     });
-    
-    debugPrint("✅ Registration Complete!");
+
+    debugPrint("✅ Atomic Registration & Billing Complete!");
   }
+
+  // Keep your existing normalizers; add this if you don’t have it yet:
+  String _normPaymentMethod(String v) {
+    final s = v.trim().toUpperCase();
+    switch (s) {
+      case 'CASH':
+        return 'CASH';
+      case 'ECOCASH':
+        return 'ECOCASH';
+      case 'BANK':
+      case 'TRANSFER':
+        return 'TRANSFER';
+      case 'SWIPE':
+        return 'SWIPE';
+      default:
+        return 'CASH';
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // 4) LOGS (REAL IMPLEMENTATION: derived from ledger)
+  // ---------------------------------------------------------------------------
 
   Future<List<LogEntry>> getStudentLogs(String studentId) async {
     try {
       final rows = await _db.getAll(
-        "SELECT * FROM student_logs WHERE student_id = ? ORDER BY created_at DESC",
+        """
+        SELECT id, type, category, amount, description, occurred_at
+        FROM ledger
+        WHERE student_id = ?
+        ORDER BY occurred_at DESC
+        LIMIT 50
+        """,
         [studentId],
       );
-      return rows.map((r) => LogEntry.fromRow(r)).toList();
+
+      return rows.map((r) {
+        final occurredAt =
+            DateTime.tryParse((r['occurred_at'] as String?) ?? '') ??
+            DateTime.now();
+        final category = (r['category'] as String?) ?? 'SYSTEM';
+        final type = ((r['type'] as String?) ?? '').toUpperCase();
+        final amount = (r['amount'] as num?)?.toDouble() ?? 0.0;
+
+        final title = "$category ${type == 'CREDIT' ? 'Credit' : 'Debit'}";
+        final desc = (r['description'] as String?) ?? '$category transaction';
+        final logType = LogType.financial;
+
+        return LogEntry(
+          id: (r['id'] as String?) ?? _uuid.v4(),
+          title: title,
+          description: "$desc ($amount)",
+          timestamp: occurredAt,
+          type: logType,
+          performedBy: "System",
+        );
+      }).toList();
     } catch (e) {
-      debugPrint("Error fetching logs: $e");
-      return []; 
+      debugPrint("Error fetching logs from ledger: $e");
+      return [];
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // HELPERS: normalize values to satisfy DB CHECK constraints
+  // ---------------------------------------------------------------------------
+
+  String _normBillingCycle(String raw) {
+    final v = raw.trim().toUpperCase();
+    if (v == 'MONTHLY') return 'MONTHLY';
+    if (v == 'TERMLY' || v == 'TERM' || v == 'TERMly'.toUpperCase())
+      return 'TERMLY';
+    if (v == 'YEARLY' || v == 'ANNUAL' || v == 'ANNUALLY') return 'YEARLY';
+
+    // UI labels support
+    if (v.startsWith('MON')) return 'MONTHLY';
+    if (v.startsWith('TER')) return 'TERMLY';
+    if (v.startsWith('YEA') || v.startsWith('ANN')) return 'YEARLY';
+
+    // Safe default (matches DB default too)
+    return 'TERMLY';
+  }
+
+  String _normStudentType(String raw) {
+    final v = raw.trim().toUpperCase();
+    if (v == 'PRIVATE') return 'PRIVATE';
+    if (v == 'ACADEMY') return 'ACADEMY';
+
+    // UI labels support
+    if (v.startsWith('PRI')) return 'PRIVATE';
+
+    return 'ACADEMY';
+  }
+
+  String _normGender(String raw) {
+    final v = raw.trim().toUpperCase();
+    if (v == 'M' || v == 'MALE') return 'M';
+    if (v == 'F' || v == 'FEMALE') return 'F';
+    // DB allows Male/Female/M/F, but keep it strict to avoid surprises.
+    return v.isNotEmpty ? v[0] : 'M';
   }
 }

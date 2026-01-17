@@ -1,3 +1,3 @@
-// lib/models/billing_models.dart
 
-enum InvoiceStatus { draft, posted, paid, voided }
+// lib/data/models/invoice_status.dart
+enum InvoiceStatus { draft, pending, paid, partial, overdue, voided, cancelled }

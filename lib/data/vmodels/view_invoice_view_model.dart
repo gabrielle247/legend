@@ -1,63 +1,44 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show ChangeNotifier, debugPrint;
+import 'package:legend/data/models/all_models.dart';
+import 'package:legend/data/repo/financial_repo.dart';
+import 'package:legend/data/repo/student_repo.dart';
 
-class ViewInvoiceViewModel {
+class ViewInvoiceViewModel extends ChangeNotifier {
+  final FinanceRepository _financeRepo;
+  final StudentRepository _studentRepo;
   final String invoiceId;
+
   bool isLoading = true;
-  
-  // Invoice Data
-  late String invoiceNumber;
-  late DateTime issueDate;
-  late DateTime dueDate;
-  late String studentName;
-  late String guardianName;
-  late String guardianPhone; // For WhatsApp
-  late List<Map<String, dynamic>> items;
-  late double total;
-  late String status; // PAID, UNPAID, OVERDUE
+  String? error;
 
-  ViewInvoiceViewModel(this.invoiceId);
+  Invoice? invoice;
+  List<InvoiceItem> items = [];
+  Student? student;
 
-  Future<void> loadInvoice() async {
-    // Simulate DB Fetch
-    await Future.delayed(const Duration(milliseconds: 600));
-    
-    // MOCK DATA
-    invoiceNumber = "INV-2026-001-${invoiceId.substring(0, 4)}";
-    issueDate = DateTime.now().subtract(const Duration(days: 2));
-    dueDate = DateTime.now().add(const Duration(days: 12));
-    studentName = "Nyasha Gabriel";
-    guardianName = "Mr. T. Kuudzadombo";
-    guardianPhone = "+263771234567";
-    status = "UNPAID";
-    
-    items = [
-      {"desc": "Term 1 Tuition", "qty": 1, "price": 450.00},
-      {"desc": "Computer Lab Levy", "qty": 1, "price": 50.00},
-      {"desc": "Sports Uniform", "qty": 1, "price": 35.00},
-    ];
-    
-    total = items.fold(0.0, (sum, item) => sum + (item['price'] * item['qty']));
-    isLoading = false;
+  ViewInvoiceViewModel(this._financeRepo, this._studentRepo, this.invoiceId);
+
+  Future<void> load() async {
+    isLoading = true;
+    error = null;
+    notifyListeners();
+
+    try {
+      invoice = await _financeRepo.getInvoiceById(invoiceId);
+      if (invoice == null) throw Exception("Invoice not found.");
+
+      items = await _financeRepo.getInvoiceItems(invoiceId);
+      student = await _studentRepo.getStudentById(invoice!.studentId);
+    } catch (e) {
+      error = e.toString();
+      debugPrint("ViewInvoiceViewModel.load error: $e");
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
   }
 
-  Future<void> shareViaWhatsApp(BuildContext context) async {
-    // TODO: Implement actual PDF Generation & Share Intent
-    // 1. Convert Widget to Image/PDF
-    // 2. Write to Temp File
-    // 3. ShareX.shareFiles([path], text: "Hello $guardianName, please find invoice...")
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: const [
-            Icon(Icons.check_circle, color: Colors.white),
-            SizedBox(width: 8),
-            Text("Generating PDF & Opening WhatsApp..."),
-          ],
-        ),
-        backgroundColor: const Color(0xFF25D366), // WhatsApp Green
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
+  double get total => items.fold<double>(
+        0.0,
+        (sum, it) => sum + (it.amount * (it.quantity <= 0 ? 1 : it.quantity)),
+      );
 }

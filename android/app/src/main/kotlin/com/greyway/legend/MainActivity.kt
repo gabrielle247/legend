@@ -1,4 +1,4 @@
-package com.example.legend
+package com.greyway.legend
 
 import io.flutter.embedding.android.FlutterActivity
 

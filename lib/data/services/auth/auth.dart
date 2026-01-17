@@ -13,93 +13,92 @@ class AuthService extends ChangeNotifier {
   // STATE
   SchoolConfig? _activeSchool;
   bool _isLoading = true;
-  bool _requiresOnlineSetup = false; // <--- The Flag for your Security Screen
+  bool _requiresOnlineSetup = false;
 
   // GETTERS
   User? get user => _authRepo.currentUser;
   SchoolConfig? get activeSchool => _activeSchool;
   bool get isLoading => _isLoading;
-  
-  /// If TRUE, redirect user to the "Security Explanation" screen.
-  /// This happens when: User has Session + No Local School Data + No Internet.
   bool get requiresOnlineSetup => _requiresOnlineSetup;
-
-  /// FIX: Added missing getter for Router checks
   bool get isAuthenticated => _authRepo.currentUser != null;
 
   AuthService(this._authRepo, this._schoolRepo) {
     _restoreSession();
   }
 
-  /// --------------------------------------------------------------------------
-  /// 1. SESSION RESTORATION (OFFLINE FIRST LOGIC)
-  /// --------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // 1) SESSION RESTORATION (OFFLINE-FIRST)
+  // ---------------------------------------------------------------------------
   Future<void> _restoreSession() async {
     final userId = _authRepo.currentUser?.id;
-    
-    if (userId != null) {
-      debugPrint("🔄 Restoring session for: $userId");
-      
-      try {
-        // A. TRY LOCAL CACHE FIRST (Instant, works offline)
-        _activeSchool = await _schoolRepo.getLocalSchool();
 
-        if (_activeSchool != null) {
-          debugPrint("✅ Offline Session Restored: ${_activeSchool!.name}");
-          _requiresOnlineSetup = false;
-          // Ignite PowerSync immediately with cached config
-          await _connectPowerSync(); 
-          
-          // Optional: Attempt background refresh without blocking UI
-          _backgroundRefresh(userId);
-        } else {
-          // B. NO CACHE? MUST GO ONLINE
-          debugPrint("⚠️ No local school found. Attempting online fetch...");
-          await _fetchSchoolOnline(userId);
-        }
-
-      } catch (e) {
-        debugPrint("❌ Session Restoration Failed: $e");
-        
-        // C. EDGE CASE: User is 'Auth'd' but has no School Data & No Internet.
-        // We set this flag to tell the UI to show the "Security/Online" screen.
-        if (_activeSchool == null) {
-          _requiresOnlineSetup = true;
-        }
-      }
-    }
-    
-    _isLoading = false;
-    notifyListeners();
-  }
-
-  /// --------------------------------------------------------------------------
-  /// 2. HELPERS
-  /// --------------------------------------------------------------------------
-  
-  /// Syncs with Supabase to get the latest School Config
-  Future<void> _fetchSchoolOnline(String userId) async {
-    try {
-      // This throws an error if offline, triggering the catch block above
-      _activeSchool = await _schoolRepo.getSchoolForUser(userId);
+    if (userId == null) {
+      _isLoading = false;
       _requiresOnlineSetup = false;
-      await _connectPowerSync();
+      _activeSchool = null;
+      notifyListeners();
+      return;
+    }
+
+    debugPrint("🔄 Restoring session for: $userId");
+
+    try {
+      // A) Try local cache FIRST (must be user-scoped)
+      _activeSchool = await _schoolRepo.getLocalSchool(userId);
+
+      if (_activeSchool != null) {
+        debugPrint("✅ Offline Session Restored: ${_activeSchool!.name}");
+        _requiresOnlineSetup = false;
+
+        // Ignite PowerSync immediately with cached config
+        await _connectPowerSync();
+
+        // Optional background refresh (does not block UI)
+        _backgroundRefresh(userId);
+      } else {
+        // B) No cache -> MUST go online once
+        debugPrint("⚠️ No local school found. Attempting online fetch...");
+        await _fetchSchoolOnline(userId);
+      }
     } catch (e) {
-      // Propagate error so _restoreSession knows we failed
-      throw Exception("Online fetch failed: $e");
+      debugPrint("❌ Session Restoration Failed: $e");
+
+      // If we have a user session but no school config, we cannot proceed offline.
+      if (_activeSchool == null) {
+        _requiresOnlineSetup = true;
+      }
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
   }
 
-  /// Fire-and-forget update to keep local cache fresh
+  // ---------------------------------------------------------------------------
+  // 2) HELPERS
+  // ---------------------------------------------------------------------------
+
+  Future<void> _fetchSchoolOnline(String userId) async {
+    // If offline or blocked by RLS, this throws and caller handles it
+    _activeSchool = await _schoolRepo.getSchoolForUser(userId);
+    _requiresOnlineSetup = false;
+    await _connectPowerSync();
+  }
+
   Future<void> _backgroundRefresh(String userId) async {
     try {
       final remote = await _schoolRepo.getSchoolForUser(userId);
-      if (_activeSchool?.id != remote.id) {
+
+      // Update if anything important changed
+      final changed = (_activeSchool == null) ||
+          (_activeSchool!.id != remote.id) ||
+          (_activeSchool!.name != remote.name);
+
+      if (changed) {
         _activeSchool = remote;
-        notifyListeners(); // Only update if school actually changed
+        notifyListeners();
       }
     } catch (_) {
-      // Silent fail is fine here - we are already running on cache
+      // Silent fail is OK here: we already have cache + powersync running.
     }
   }
 
@@ -114,28 +113,26 @@ class AuthService extends ChangeNotifier {
     await DatabaseService().connect(connector);
   }
 
-  /// --------------------------------------------------------------------------
-  /// 3. USER ACTIONS
-  /// --------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // 3) USER ACTIONS
+  // ---------------------------------------------------------------------------
 
   Future<void> login(String email, String password) async {
     _isLoading = true;
     notifyListeners();
 
     try {
-      // 1. Auth with Supabase
       final response = await _authRepo.signInWithPassword(email, password);
       final userId = response.user?.id;
 
-      if (userId != null) {
-        // 2. Fetch School (Must succeed on initial login)
-        await _fetchSchoolOnline(userId);
-        notifyListeners();
+      if (userId == null) {
+        throw Exception("Login succeeded but userId is null.");
       }
+
+      // Must succeed on initial login: fetch school online + cache + connect powersync
+      await _fetchSchoolOnline(userId);
     } catch (e) {
       debugPrint("Login Error: $e");
-      _isLoading = false;
-      notifyListeners();
       rethrow;
     } finally {
       _isLoading = false;
@@ -144,16 +141,29 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<void> logout() async {
-    await _authRepo.signOut();
-    await DatabaseService().close();
-    
+    final userId = _authRepo.currentUser?.id;
+
+    try {
+      await _authRepo.signOut();
+    } catch (_) {
+      // ignore
+    }
+
+    try {
+      await DatabaseService().close();
+    } catch (_) {
+      // ignore
+    }
+
     // Clear state
     _activeSchool = null;
     _requiresOnlineSetup = false;
-    
-    // Clear local cache to ensure security on logout
-    await _schoolRepo.clearCache(); 
-    
+
+    // Clear user-scoped cache (if we still know userId)
+    if (userId != null) {
+      await _schoolRepo.clearCache(userId);
+    }
+
     notifyListeners();
   }
 }

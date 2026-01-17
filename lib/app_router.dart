@@ -1,4 +1,6 @@
 import 'package:legend/app_libs.dart';
+import 'package:legend/data/constants/app_routes.dart';
+import 'package:legend/screens/finance/logging_payments.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -69,6 +71,14 @@ class LegendRouter {
         path: AppRoutes.signup,
         builder: (context, state) => const SignupScreen(),
       ),
+      GoRoute(
+        path: AppRoutes.loggingPayments,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => LoggingPaymentsScreen(
+          studentId: state.pathParameters['studentId']!,
+        ),
+      ),
+
       GoRoute(
         path: AppRoutes.resetPassword,
         builder: (context, state) => const ForgotPasswordScreen(),
