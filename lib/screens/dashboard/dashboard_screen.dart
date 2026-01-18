@@ -69,6 +69,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         // 3. DATA
         final profile = vm.profile ?? LegendProfile(id: '0', fullName: 'Staff', role: 'STAFF');
         final stats = vm.stats;
+        final unreadStream = vm.unreadCountStream;
 
         return Scaffold(
           backgroundColor: AppColors.backgroundBlack,
@@ -92,7 +93,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildWelcomeHeader(context, profile),
+                  _buildWelcomeHeader(context, profile, unreadStream),
                   const SizedBox(height: 24),
                   _buildMonthlyCollectionCard(context, stats),
                   const SizedBox(height: 24),
@@ -156,7 +157,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // WIDGET BUILDERS
   // ---------------------------------------------------------------------------
 
-  Widget _buildWelcomeHeader(BuildContext context, LegendProfile profile) {
+  Widget _buildWelcomeHeader(
+    BuildContext context,
+    LegendProfile profile,
+    Stream<int>? unreadStream,
+  ) {
     final schoolName = context.read<AuthService>().activeSchool?.name ?? "—";
     final displayName = profile.fullName.trim().isEmpty ? "Staff" : profile.fullName.split(' ').first;
     return Row(
@@ -172,19 +177,65 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Text(schoolName, style: TextStyle(color: AppColors.primaryBlue.withAlpha(200), fontSize: 12, fontWeight: FontWeight.bold)),
           ],
         ),
-        GestureDetector(
-          onTap: () => context.go(AppRoutes.settings),
-          child: Container(
-            padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: AppColors.primaryBlue, width: 2)),
-            child: CircleAvatar(
-              radius: 24,
-              backgroundColor: AppColors.surfaceLightGrey,
-              child: Text(profile.fullName.isNotEmpty ? profile.fullName[0].toUpperCase() : "U", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+        Row(
+          children: [
+            _buildNotificationsButton(context, unreadStream),
+            const SizedBox(width: 12),
+            GestureDetector(
+              onTap: () => context.go(AppRoutes.settings),
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: AppColors.primaryBlue, width: 2)),
+                child: CircleAvatar(
+                  radius: 24,
+                  backgroundColor: AppColors.surfaceLightGrey,
+                  child: Text(profile.fullName.isNotEmpty ? profile.fullName[0].toUpperCase() : "U", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+                ),
+              ),
             ),
-          ),
+          ],
         )
       ],
+    );
+  }
+
+  Widget _buildNotificationsButton(BuildContext context, Stream<int>? unreadStream) {
+    final iconButton = IconButton(
+      onPressed: () => context.go('${AppRoutes.dashboard}/${AppRoutes.notifications}'),
+      icon: const Icon(Icons.notifications_none, color: Colors.white),
+      tooltip: "Notifications",
+    );
+
+    if (unreadStream == null) return iconButton;
+
+    return StreamBuilder<int>(
+      stream: unreadStream,
+      builder: (context, snapshot) {
+        final count = snapshot.data ?? 0;
+        if (count <= 0) return iconButton;
+
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            iconButton,
+            Positioned(
+              right: 6,
+              top: 6,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.errorRed,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  count > 99 ? "99+" : "$count",
+                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 

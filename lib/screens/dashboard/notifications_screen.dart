@@ -11,7 +11,6 @@ class NotificationsScreen extends StatefulWidget {
 class _NotificationsScreenState extends State<NotificationsScreen> {
   // We use Streams to listen to the DB in real-time
   Stream<List<LegendNotification>>? _notificationsStream;
-  String? _schoolId;
 
   @override
   void initState() {
@@ -19,13 +18,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     // 1. Initialize the Stream safely after the widget mounts
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final authService = context.read<AuthService>();
-      final repo = context.read<DashboardRepository>();
-      
+      final vm = context.read<DashboardViewModel>();
+
       final school = authService.activeSchool;
       if (school != null) {
         setState(() {
-          _schoolId = school.id;
-          _notificationsStream = repo.watchNotifications(school.id);
+          _notificationsStream =
+              vm.notificationsStream ?? context.read<DashboardRepository>().watchNotifications(school.id);
         });
       }
     });
@@ -36,13 +35,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   // ---------------------------------------------------------------------------
 
   Future<void> _handleMarkAsRead(String notiId) async {
-    await context.read<DashboardRepository>().markAsRead(notiId);
+    await context.read<DashboardViewModel>().markNotificationRead(notiId);
   }
 
   Future<void> _handleMarkAllRead() async {
-    if (_schoolId == null) return;
-    
-    await context.read<DashboardRepository>().markAllAsRead(_schoolId!);
+    await context.read<DashboardViewModel>().markAllNotificationsRead();
     
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -57,8 +54,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Future<void> _handleClearAll() async {
-    if (_schoolId == null) return;
-
     // Show confirmation dialog first
     final confirm = await showDialog<bool>(
       context: context,
@@ -80,7 +75,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
 
     if (confirm == true && mounted) {
-      await context.read<DashboardRepository>().clearAllNotifications(_schoolId!);
+      await context.read<DashboardViewModel>().clearAllNotifications();
     }
   }
 

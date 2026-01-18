@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:legend/data/constants/app_routes.dart';
 import 'package:legend/data/models/all_models.dart';
-import 'package:legend/data/repo/dashboard_repo.dart';
+import 'package:legend/data/vmodels/dashboard_vmodel.dart';
 import 'package:provider/provider.dart'; 
 import 'package:legend/data/constants/app_constants.dart';
 import 'package:legend/screens/finance/printing_receipt_screen.dart';
@@ -84,7 +84,7 @@ class NotificationDetailScreen extends StatelessWidget {
 
               if (confirm == true && context.mounted) {
                 // Call Repository
-                await context.read<DashboardRepository>().deleteNotification(notification.id);
+                await context.read<DashboardViewModel>().deleteNotification(notification.id);
                 if (context.mounted) {
                   Navigator.pop(context); // Close detail screen
                 }
@@ -295,6 +295,12 @@ class NotificationDetailScreen extends StatelessWidget {
         final studentId = metadata['student_id'];
         context.push('${AppRoutes.students}/view/$studentId');
       };
+    } else if (metadata['route'] is String) {
+      final route = metadata['route'] as String;
+      label = "Open";
+      btnIcon = Icons.open_in_new;
+      isPrimary = true;
+      onTap = () => context.go(route);
     } else if (metadata.containsKey('action_url')) {
       label = "Open Link";
       btnIcon = Icons.open_in_new;

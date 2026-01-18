@@ -61,6 +61,10 @@ class LegendNotification {
   /// Helper to safely parse the Enum
   static NotificationType _parseType(String? val) {
     switch (val?.toUpperCase()) {
+      case 'GROWTH': return NotificationType.insight;
+      case 'FINANCE': return NotificationType.success;
+      case 'ALERT': return NotificationType.warning;
+      case 'REPORT': return NotificationType.info;
       case 'SUCCESS': return NotificationType.success;
       case 'WARNING': return NotificationType.warning;
       case 'INSIGHT': return NotificationType.insight;

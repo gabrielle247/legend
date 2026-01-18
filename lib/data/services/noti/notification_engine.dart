@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:async';
+import 'package:legend/data/constants/app_routes.dart';
 import 'package:legend/data/services/database_serv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
@@ -66,8 +67,8 @@ class NotificationEngine {
           userId: userId,
           title: "Growth Milestone 🚀",
           message: message,
-          type: 'GROWTH',
-          metadata: {'route': '/students', 'value': currentCount},
+          type: 'INSIGHT',
+          metadata: {'route': AppRoutes.students, 'value': currentCount},
         );
       }
       
@@ -117,8 +118,8 @@ class NotificationEngine {
           userId: userId,
           title: "Revenue Spike 📈",
           message: "Strong performance today! Collections are up 50% compared to yesterday.",
-          type: 'FINANCE',
-          metadata: {'route': '/finance', 'amount': todayTotal},
+          type: 'SUCCESS',
+          metadata: {'route': AppRoutes.finance, 'amount': todayTotal},
         );
       } else if (todayTotal > 1000) { 
         // Arbitrary "Good Day" threshold - customize this based on config currency later
@@ -127,8 +128,8 @@ class NotificationEngine {
           userId: userId,
           title: "Solid Collection Day",
           message: "You've collected ${_formatCurrency(todayTotal)} today. Keep the momentum going.",
-          type: 'FINANCE',
-          metadata: {'route': '/finance', 'amount': todayTotal},
+          type: 'INSIGHT',
+          metadata: {'route': AppRoutes.finance, 'amount': todayTotal},
         );
       }
       // Mark as checked for today
@@ -172,8 +173,8 @@ class NotificationEngine {
           userId: userId,
           title: "Cash Flow Alert ⚠️",
           message: "Action required: Over 60% of invoices are still pending. Consider sending a bulk reminder.",
-          type: 'ALERT',
-          metadata: {'route': '/invoices', 'pending_rate': pendingRate},
+          type: 'WARNING',
+          metadata: {'route': AppRoutes.finance, 'pending_rate': pendingRate},
         );
       }
     }
@@ -221,8 +222,8 @@ class NotificationEngine {
       userId: userId,
       title: "Monthly Report Ready 📊",
       message: "Last month closed with ${_formatCurrency(total)} in collections. Tap to see the breakdown.",
-      type: 'REPORT',
-      metadata: {'route': '/reports', 'month': monthKey},
+      type: 'INFO',
+      metadata: {'route': '${AppRoutes.dashboard}/${AppRoutes.statistics}', 'month': monthKey},
     );
 
     await prefs.setString(key, monthKey);
