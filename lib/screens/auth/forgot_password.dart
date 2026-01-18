@@ -22,6 +22,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   bool _isLoading = false;
   bool _isObscure1 = true;
   bool _isObscure2 = true;
+  bool _isLoggedInUser = false;
 
   // Controllers
   final TextEditingController _emailController = TextEditingController();
@@ -36,6 +37,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     _passController.dispose();
     _confirmController.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final user = context.read<AuthRepository>().currentUser;
+    if (user?.email != null && user!.email!.trim().isNotEmpty) {
+      _isLoggedInUser = true;
+      _emailController.text = user.email!;
+    }
   }
 
   void _showSnack(String msg, {bool isError = false}) {
@@ -60,8 +71,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     setState(() => _isLoading = true);
     
     try {
-      // WIRED: Trigger Supabase Password Reset
-      await context.read<AuthRepository>().resetPasswordForEmail(email);
+      // WIRED: Trigger Supabase OTP Recovery
+      await context.read<AuthRepository>().sendRecoveryOtp(email);
 
       if (mounted) {
         setState(() {
@@ -113,7 +124,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
         _showSnack(AppStrings.msgSuccess);
-        context.go(AppRoutes.login); 
+        if (_isLoggedInUser) {
+          context.pop();
+        } else {
+          context.go(AppRoutes.login);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -226,6 +241,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         label: "Email Address",
                         icon: Icons.email_outlined,
                         inputType: TextInputType.emailAddress,
+                        readOnly: _isLoggedInUser,
                       ),
                       const SizedBox(height: 32),
                       
@@ -344,6 +360,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     VoidCallback? onVisibilityToggle,
     TextInputType inputType = TextInputType.text,
     bool isCodeInput = false,
+    bool readOnly = false,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -365,6 +382,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           ),
           child: TextField(
             controller: controller,
+            readOnly: readOnly,
             obscureText: isPassword && !isVisible,
             keyboardType: inputType,
             textAlign: isCodeInput ? TextAlign.center : TextAlign.start,

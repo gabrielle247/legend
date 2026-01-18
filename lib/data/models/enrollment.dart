@@ -16,6 +16,7 @@ class Enrollment {
 
   // Stored as jsonb in Supabase; TEXT(JSON) in SQLite
   final List<String> subjects;
+  final double tuitionAmount;
 
   Enrollment({
     required this.id,
@@ -28,6 +29,7 @@ class Enrollment {
     this.createdAt,
     this.enrollmentDate,
     this.subjects = const [],
+    this.tuitionAmount = 0.0,
   });
 
   // Backward aliases for older code
@@ -49,18 +51,47 @@ class Enrollment {
     if (raw == null) return const [];
 
     // Supabase jsonb typically arrives as List<dynamic>
-    if (raw is List) return raw.map((e) => e.toString()).toList();
+    if (raw is List) return _subjectListFromDynamic(raw);
 
     // SQLite TEXT containing JSON
     final s = raw.toString().trim();
     if (s.isEmpty) return const [];
 
+    final decoded = _decodeSubjectsString(s);
+    if (decoded.isNotEmpty) return decoded;
+
+    // Fallback: CSV/semicolon or single subject string
+    final parts = s.split(RegExp(r'[;,]')).map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    if (parts.isNotEmpty) return parts;
+
+    return const [];
+  }
+
+  static List<String> _decodeSubjectsString(String s) {
     try {
       final decoded = jsonDecode(s);
-      if (decoded is List) return decoded.map((e) => e.toString()).toList();
+      if (decoded is List) return _subjectListFromDynamic(decoded);
+      if (decoded is String) {
+        final nested = jsonDecode(decoded);
+        if (nested is List) return _subjectListFromDynamic(nested);
+      }
     } catch (_) {}
 
     return const [];
+  }
+
+  static List<String> _subjectListFromDynamic(List<dynamic> items) {
+    return items
+        .map((e) {
+          if (e is Map) {
+            final name = e['subjectName'] ?? e['name'];
+            return name?.toString();
+          }
+          return e.toString();
+        })
+        .where((e) => e != null && e.trim().isNotEmpty)
+        .map((e) => e!.trim())
+        .toList();
   }
 
   factory Enrollment.fromRow(Map<String, dynamic> row) {
@@ -75,6 +106,7 @@ class Enrollment {
       createdAt: _parseDate(row['created_at']),
       enrollmentDate: _parseDate(row['enrollment_date']),
       subjects: _parseSubjects(row['subjects']),
+      tuitionAmount: (row['tuition_amount'] as num?)?.toDouble() ?? 0.0,
     );
   }
 }

@@ -27,6 +27,7 @@ class AddStudentViewModel extends ChangeNotifier {
   final openingBalanceCtrl = TextEditingController(text: '0.00');
   final initialPaymentCtrl = TextEditingController(text: '0.00');
   final debtDescriptionCtrl = TextEditingController();
+  final tuitionAmountCtrl = TextEditingController(text: '0.00');
 
   // ---------------------------------------------------------------------------
   // REACTIVE PROPERTIES
@@ -110,12 +111,13 @@ class AddStudentViewModel extends ChangeNotifier {
   double get totalDebt => double.tryParse(openingBalanceCtrl.text) ?? 0.0;
   double get initialPay => double.tryParse(initialPaymentCtrl.text) ?? 0.0;
   double get netOutstanding => totalDebt - initialPay;
+  double get tuitionAmount => double.tryParse(tuitionAmountCtrl.text) ?? 0.0;
 
   // DATA SOURCES
   List<String> get grades => _gradeNames;
 
   // ✅ FIXED: Renamed to 'billingCycles' to match the UI View
-  List<String> get billingCycles => ['MONTHLY', 'TERMLY', 'YEARLY'];
+  List<String> get billingCycles => ['MONTHLY_FIXED', 'MONTHLY_CUSTOM', 'TERMLY', 'YEARLY', 'CUSTOM'];
 
   List<String> get paymentMethods => ['Cash', 'EcoCash', 'Swipe', 'Transfer'];
   List<String> get availableSubjects => ZimsecSubject.allNames;
@@ -214,6 +216,7 @@ class AddStudentViewModel extends ChangeNotifier {
             ? "Opening Balance ($currentTermLabel)"
             : debtDescriptionCtrl.text.trim(),
         subjects: _selectedSubjects,
+        tuitionAmount: tuitionAmount,
         initialPayment: initialPay,
         paymentMethod: _selectedPaymentMethod,
       );

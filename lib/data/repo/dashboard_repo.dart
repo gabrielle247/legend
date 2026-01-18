@@ -64,6 +64,31 @@ class DashboardRepository {
     }
   }
 
+  Stream<DashboardStats> watchDashboardStats(String schoolId) {
+    return db
+        .watch(
+          """
+          SELECT
+            (SELECT count(*) FROM students WHERE school_id = ? AND status = 'ACTIVE') as total_students,
+            (SELECT count(*) FROM invoices
+              WHERE school_id = ? AND UPPER(status) IN ($_openStatuses)) as pending_invoices,
+            (SELECT COALESCE(SUM(amount), 0) FROM payments
+              WHERE school_id = ? AND substr(received_at, 1, 10) = date('now','localtime')) as collected_today,
+            (SELECT COALESCE(SUM(fees_owed), 0) FROM students WHERE school_id = ?) as total_owed
+          """,
+          parameters: [schoolId, schoolId, schoolId, schoolId],
+        )
+        .map((rows) {
+          final row = rows.isNotEmpty ? rows.first : const <String, Object?>{};
+          return DashboardStats(
+            totalStudents: (row['total_students'] as num?)?.toInt() ?? 0,
+            pendingInvoices: (row['pending_invoices'] as num?)?.toInt() ?? 0,
+            collectedToday: (row['collected_today'] as num?)?.toDouble() ?? 0.0,
+            totalOwed: (row['total_owed'] as num?)?.toDouble() ?? 0.0,
+          );
+        });
+  }
+
   Future<List<Map<String, dynamic>>> getRecentActivity(String schoolId) async {
     try {
       const sql = """
@@ -127,6 +152,32 @@ class DashboardRepository {
     return db.getAll(sql, [schoolId]);
   }
 
+  Future<List<Map<String, dynamic>>> getRevenueTrendForRange(
+    String schoolId, {
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    const sql = """
+      SELECT
+        date(received_at) as day,
+        sum(amount) as total
+      FROM payments
+      WHERE school_id = ?
+        AND datetime(received_at) >= datetime(?)
+        AND datetime(received_at) <= datetime(?)
+      GROUP BY day
+      ORDER BY day ASC
+    """;
+    return db.getAll(
+      sql,
+      [
+        schoolId,
+        startDate.toUtc().toIso8601String(),
+        endDate.toUtc().toIso8601String(),
+      ],
+    );
+  }
+
   Future<List<Map<String, dynamic>>> getDebtByGrade(String schoolId) async {
     const sql = """
       SELECT
@@ -142,11 +193,28 @@ class DashboardRepository {
     return db.getAll(sql, [schoolId]);
   }
 
-  Future<Map<String, double>> getPaymentMethodStats(String schoolId) async {
-    final rows = await db.getAll(
-      "SELECT method, count(*) as count FROM payments WHERE school_id = ? GROUP BY method",
-      [schoolId],
-    );
+  Future<Map<String, double>> getPaymentMethodStats(String schoolId,
+      {DateTime? startDate, DateTime? endDate}) async {
+    final hasRange = startDate != null && endDate != null;
+    final sql = hasRange
+        ? """
+          SELECT method, count(*) as count
+          FROM payments
+          WHERE school_id = ?
+            AND datetime(received_at) >= datetime(?)
+            AND datetime(received_at) <= datetime(?)
+          GROUP BY method
+        """
+        : "SELECT method, count(*) as count FROM payments WHERE school_id = ? GROUP BY method";
+    final params = hasRange
+        ? [
+            schoolId,
+            startDate.toUtc().toIso8601String(),
+            endDate.toUtc().toIso8601String(),
+          ]
+        : [schoolId];
+
+    final rows = await db.getAll(sql, params);
 
     final Map<String, double> result = {};
     for (final row in rows) {
@@ -191,5 +259,53 @@ class DashboardRepository {
       debugPrint('Error fetching user profile: $e');
       return null;
     }
+  }
+
+  Future<Term?> getActiveTerm(String schoolId) async {
+    try {
+      final row = await db.getOptional(
+        "SELECT * FROM terms WHERE school_id = ? AND is_active = 1 LIMIT 1",
+        [schoolId],
+      );
+      return row != null ? Term.fromRow(row) : null;
+    } catch (e) {
+      debugPrint('Error fetching active term: $e');
+      return null;
+    }
+  }
+
+  Future<Term?> getPreviousTerm(String schoolId, DateTime beforeDate) async {
+    try {
+      final row = await db.getOptional(
+        """
+        SELECT * FROM terms
+        WHERE school_id = ?
+          AND datetime(end_date) < datetime(?)
+        ORDER BY datetime(end_date) DESC
+        LIMIT 1
+        """,
+        [schoolId, beforeDate.toUtc().toIso8601String()],
+      );
+      return row != null ? Term.fromRow(row) : null;
+    } catch (e) {
+      debugPrint('Error fetching previous term: $e');
+      return null;
+    }
+  }
+
+  // ===========================================================================
+  // 4. NUCLEAR RESET (Student + Finance Data)
+  // ===========================================================================
+
+  Future<void> deleteAllStudentData(String schoolId) async {
+    await db.writeTransaction((tx) async {
+      await tx.execute("DELETE FROM payment_allocations WHERE school_id = ?", [schoolId]);
+      await tx.execute("DELETE FROM invoice_items WHERE school_id = ?", [schoolId]);
+      await tx.execute("DELETE FROM payments WHERE school_id = ?", [schoolId]);
+      await tx.execute("DELETE FROM invoices WHERE school_id = ?", [schoolId]);
+      await tx.execute("DELETE FROM ledger WHERE school_id = ?", [schoolId]);
+      await tx.execute("DELETE FROM enrollments WHERE school_id = ?", [schoolId]);
+      await tx.execute("DELETE FROM students WHERE school_id = ?", [schoolId]);
+    });
   }
 }

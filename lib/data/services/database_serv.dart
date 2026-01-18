@@ -24,6 +24,13 @@ class DatabaseService {
     return _db!;
   }
 
+  PowerSyncDatabase? get dbOrNull => _isInitialized ? _db : null;
+
+  SyncStatus? get currentStatus => _isInitialized ? _db?.currentStatus : null;
+
+  Stream<SyncStatus> get statusStream =>
+      _isInitialized && _db != null ? _db!.statusStream : const Stream.empty();
+
   /// 1. Initialize the SQLite file (Offline Mode)
   /// Call this in main.dart before runApp()
   Future<void> initializeStandalone() async {

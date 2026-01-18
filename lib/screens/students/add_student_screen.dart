@@ -75,6 +75,7 @@ class _AddStudentContent extends StatefulWidget {
 
 class _AddStudentContentState extends State<_AddStudentContent> {
   final _formKey = GlobalKey<FormState>();
+  final ScrollController _scrollController = ScrollController();
 
   Future<void> _handleSubmit(AddStudentViewModel vm) async {
     // 1) Form validators
@@ -166,6 +167,12 @@ class _AddStudentContentState extends State<_AddStudentContent> {
     );
 
     if (res != null) vm.updateSubjects(res);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -297,7 +304,12 @@ class _AddStudentContentState extends State<_AddStudentContent> {
                             flex: 7,
                             child: Scrollbar(
                               thumbVisibility: true,
-                              child: SingleChildScrollView(child: form),
+                              controller: _scrollController,
+                              child: SingleChildScrollView(
+                                controller: _scrollController,
+                                primary: false,
+                                child: form,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 16),
@@ -309,7 +321,12 @@ class _AddStudentContentState extends State<_AddStudentContent> {
                       )
                     : Scrollbar(
                         thumbVisibility: true,
-                        child: SingleChildScrollView(child: form),
+                        controller: _scrollController,
+                        child: SingleChildScrollView(
+                          controller: _scrollController,
+                          primary: false,
+                          child: form,
+                        ),
                       ),
               ),
             ),
@@ -576,6 +593,29 @@ class _FinancialSection extends StatelessWidget {
           label: "Billing Cycle (Recurring)",
           hint: "How is this student billed?",
           onChanged: (v) => vm.selectedBillingCycle = (v ?? 'TERMLY'),
+        ),
+
+        const SizedBox(height: 14),
+        const Divider(color: AppColors.surfaceLightGrey, thickness: 0.5),
+        const SizedBox(height: 14),
+
+        _InfoBanner(
+          tone: _BannerTone.neutral,
+          title: "Tuition Amount (Per Period)",
+          message: "Used by auto-billing to create tuition invoices for this enrollment.",
+        ),
+        const SizedBox(height: 10),
+
+        _MoneyField(
+          controller: vm.tuitionAmountCtrl,
+          label: "Tuition Amount",
+          hint: "0.00",
+          accent: AppColors.primaryBlue,
+          validator: (v) {
+            final val = (double.tryParse((v ?? '').trim()) ?? 0.0);
+            if (val < 0) return "Cannot be negative";
+            return null;
+          },
         ),
 
         const SizedBox(height: 14),

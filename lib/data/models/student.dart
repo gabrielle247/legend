@@ -26,7 +26,7 @@ class Student {
   final double feesOwed;
 
   // Add this field
-final String billingCycle; // MONTHLY / TERMLY / YEARLY
+final String billingCycle; // MONTHLY_FIXED / MONTHLY_CUSTOM / TERMLY / YEARLY / CUSTOM
 
   // Audit
   final DateTime? createdAt;

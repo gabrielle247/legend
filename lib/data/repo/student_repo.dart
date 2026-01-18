@@ -49,8 +49,8 @@ class StudentRepository {
   }
 
   Future<List<String>> getBillingCycles() async {
-    // UI labels. DB values are MONTHLY/TERMLY/YEARLY.
-    return ['Monthly', 'Termly', 'Yearly'];
+    // UI labels. DB values are MONTHLY_FIXED/MONTHLY_CUSTOM/TERMLY/YEARLY/CUSTOM.
+    return ['Monthly Fixed', 'Monthly Custom', 'Termly', 'Yearly', 'Custom'];
   }
 
   // ---------------------------------------------------------------------------
@@ -72,6 +72,19 @@ class StudentRepository {
       debugPrint("Error fetching students: $e");
       rethrow;
     }
+  }
+
+  Stream<List<Student>> watchStudents(String schoolId) {
+    return _db
+        .watch(
+          '''
+          SELECT * FROM students
+          WHERE school_id = ? AND status != 'ARCHIVED'
+          ORDER BY last_name, first_name
+          ''',
+          parameters: [schoolId],
+        )
+        .map((rows) => rows.map((row) => Student.fromRow(row)).toList());
   }
 
   Future<Student?> getStudentById(String id) async {
@@ -166,6 +179,7 @@ class StudentRepository {
     required double openingBalance,
     String? debtDescription,
     required List<String> subjects,
+    required double tuitionAmount,
     required double initialPayment,
     required String paymentMethod,
   }) async {
@@ -193,6 +207,9 @@ class StudentRepository {
     }
     if (subjects.isEmpty) {
       throw StudentException("At least one subject must be selected.");
+    }
+    if (tuitionAmount < 0) {
+      throw StudentException("Tuition amount cannot be negative.");
     }
 
     await _db.writeTransaction((tx) async {
@@ -278,9 +295,9 @@ class StudentRepository {
         """
       INSERT INTO enrollments (
         id, school_id, student_id, class_id, academic_year_id,
-        enrollment_date, subjects, grade_level, is_active, created_at
+        enrollment_date, subjects, tuition_amount, grade_level, is_active, created_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
       """,
         [
           enrollmentId,
@@ -290,6 +307,7 @@ class StudentRepository {
           activeYearId,
           nowIso,
           subjectsJson,
+          tuitionAmount,
           gradeLevel,
           nowIso,
         ],
@@ -513,15 +531,19 @@ class StudentRepository {
 
   String _normBillingCycle(String raw) {
     final v = raw.trim().toUpperCase();
-    if (v == 'MONTHLY') return 'MONTHLY';
+    if (v == 'MONTHLY') return 'MONTHLY_FIXED';
+    if (v == 'MONTHLY_FIXED') return 'MONTHLY_FIXED';
+    if (v == 'MONTHLY_CUSTOM') return 'MONTHLY_CUSTOM';
     if (v == 'TERMLY' || v == 'TERM' || v == 'TERMly'.toUpperCase())
       return 'TERMLY';
     if (v == 'YEARLY' || v == 'ANNUAL' || v == 'ANNUALLY') return 'YEARLY';
+    if (v == 'CUSTOM') return 'CUSTOM';
 
     // UI labels support
-    if (v.startsWith('MON')) return 'MONTHLY';
+    if (v.startsWith('MON')) return 'MONTHLY_FIXED';
     if (v.startsWith('TER')) return 'TERMLY';
     if (v.startsWith('YEA') || v.startsWith('ANN')) return 'YEARLY';
+    if (v.startsWith('CUS')) return 'CUSTOM';
 
     // Safe default (matches DB default too)
     return 'TERMLY';

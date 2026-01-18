@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:legend/data/constants/app_constants.dart';
 import 'package:legend/data/constants/app_routes.dart';
@@ -31,17 +32,12 @@ class _ViewStudentScreenState extends State<ViewStudentScreen> {
     final studentRepo = context.read<StudentRepository>();
     final financeRepo = context.read<FinanceRepository>();
 
-    // IMPORTANT: Your error says you’re passing too many args to the VM.
-    // So we construct using ONLY repo (1 positional).
     _detailVm = StudentDetailViewModel(studentRepo);
 
     final schoolId = auth.activeSchool?.id ?? '';
 
     if (widget.studentId != null) {
-      // Detail
       _detailVm.loadStudent(widget.studentId!);
-
-      // Finance (real data)
       _financeVm = StudentFinanceViewModel(financeRepo, widget.studentId!, schoolId);
       _financeVm!.loadFinanceData();
     }
@@ -94,16 +90,23 @@ class _ViewStudentScreenState extends State<ViewStudentScreen> {
                   SliverOverlapAbsorber(
                     handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context),
                     sliver: SliverAppBar(
-                      expandedHeight: 220,
+                      expandedHeight: 280, // Increased height for the new profile UI
                       pinned: true,
                       backgroundColor: AppColors.backgroundBlack,
                       leading: IconButton(
-                        icon: const Icon(Icons.arrow_back, color: Colors.white),
+                        icon: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withAlpha(100),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+                        ),
                         onPressed: () => context.pop(),
                       ),
                       actions: [
                         IconButton(
-                          icon: const Icon(Icons.edit, color: Colors.white),
+                          icon: const Icon(Icons.more_horiz, color: Colors.white),
                           onPressed: () => context.push('${AppRoutes.addStudent}?studentId=${student.id}'),
                         ),
                       ],
@@ -112,13 +115,14 @@ class _ViewStudentScreenState extends State<ViewStudentScreen> {
                       ),
                       bottom: const TabBar(
                         indicatorColor: AppColors.primaryBlue,
+                        indicatorWeight: 3,
                         labelColor: Colors.white,
                         unselectedLabelColor: AppColors.textGrey,
                         labelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                         tabs: [
-                          Tab(text: "OVERVIEW"),
-                          Tab(text: "FINANCE"),
-                          Tab(text: "ACADEMIC"),
+                          Tab(text: "Overview"),
+                          Tab(text: "Finance"),
+                          Tab(text: "Academic"),
                         ],
                       ),
                     ),
@@ -133,9 +137,6 @@ class _ViewStudentScreenState extends State<ViewStudentScreen> {
                 ),
               ),
             ),
-
-            // No placebo: log payment screen not built -> disable + clearly label.
-            floatingActionButton: _LogPaymentFab(student: student),
           );
         },
       ),
@@ -144,7 +145,7 @@ class _ViewStudentScreenState extends State<ViewStudentScreen> {
 }
 
 // =============================================================================
-// Header
+// Header (Redesigned based on Image 2)
 // =============================================================================
 
 class _StudentHeader extends StatelessWidget {
@@ -159,14 +160,19 @@ class _StudentHeader extends StatelessWidget {
     final current = (active.isNotEmpty) ? active.first : (enrollments.isNotEmpty ? enrollments.first : null);
 
     final grade = current?.gradeLevel ?? "No Grade";
-    final stream = (current?.classStream?.trim().isNotEmpty ?? false) ? " • ${current!.classStream}" : "";
+    final type = student.type.name.toUpperCase();
 
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [AppColors.primaryBlue.withAlpha(40), AppColors.backgroundBlack],
+        color: AppColors.backgroundBlack,
+        // Subtle top gradient to give depth
+        gradient: RadialGradient(
+          center: Alignment.topCenter,
+          radius: 1.5,
+          colors: [
+            AppColors.primaryBlue.withAlpha(40),
+            AppColors.backgroundBlack,
+          ],
         ),
       ),
       child: SafeArea(
@@ -174,34 +180,77 @@ class _StudentHeader extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const SizedBox(height: 10),
-            Hero(
-              tag: 'avatar_${student.id}',
-              child: CircleAvatar(
-                radius: 36,
-                backgroundColor: AppColors.primaryBlue,
-                child: Text(
-                  "${student.firstName.isNotEmpty ? student.firstName[0] : '?'}"
-                  "${student.lastName.isNotEmpty ? student.lastName[0] : '?'}",
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+            // Avatar with Status Dot
+            Stack(
+              alignment: Alignment.bottomRight,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.primaryBlue.withAlpha(100), width: 1),
+                  ),
+                  child: CircleAvatar(
+                    radius: 40,
+                    backgroundColor: AppColors.surfaceLightGrey,
+                    child: Text(
+                      "${student.firstName.isNotEmpty ? student.firstName[0] : ''}${student.lastName.isNotEmpty ? student.lastName[0] : ''}",
+                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                  ),
                 ),
-              ),
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(
+                    color: AppColors.backgroundBlack,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Container(
+                    width: 14,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: student.status == StudentStatus.active ? AppColors.successGreen : AppColors.textGrey,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.backgroundBlack, width: 2),
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            Text(
-              student.fullName,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 16),
+            
+            // Name & Status Badge
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _StatusChip(text: "$grade$stream", color: AppColors.primaryBlue),
-                const SizedBox(width: 8),
-                _StatusChip(
-                  text: student.status.name.toUpperCase(),
-                  color: student.status == StudentStatus.active ? AppColors.successGreen : AppColors.textGrey,
+                Text(
+                  student.fullName,
+                  style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
                 ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.successGreen.withAlpha(30),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.successGreen.withAlpha(100)),
+                  ),
+                  child: Text(
+                    student.status.name.toUpperCase(),
+                    style: const TextStyle(color: AppColors.successGreen, fontSize: 10, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            
+            // Grade & Type Chips
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _HeaderChip(text: grade, color: AppColors.primaryBlue),
+                const SizedBox(width: 12),
+                _HeaderChip(text: type, color: AppColors.surfaceLightGrey),
               ],
             ),
           ],
@@ -211,8 +260,30 @@ class _StudentHeader extends StatelessWidget {
   }
 }
 
+class _HeaderChip extends StatelessWidget {
+  final String text;
+  final Color color;
+  const _HeaderChip({required this.text, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceDarkGrey,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withAlpha(50)),
+      ),
+      child: Text(
+        text.toUpperCase(),
+        style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+      ),
+    );
+  }
+}
+
 // =============================================================================
-// Tab: Overview (no dead actions; real utilities)
+// Tab: Overview (Integrated Image 2 "Billing Core" & "Payer" UI)
 // =============================================================================
 
 class _OverviewTab extends StatelessWidget {
@@ -221,17 +292,12 @@ class _OverviewTab extends StatelessWidget {
 
   const _OverviewTab({required this.student, required this.enrollments});
 
-  String _prettyGender(String? g) {
-    final s = (g ?? '').trim();
-    if (s.isEmpty) return "N/A";
-    final v = s.toLowerCase();
-    if (v.startsWith('m')) return "Male";
-    if (v.startsWith('f')) return "Female";
-    return s; // don’t guess beyond this
-  }
-
   @override
   Widget build(BuildContext context) {
+    final hasPhone = (student.guardianPhone ?? '').trim().isNotEmpty;
+    final hasEmail = (student.guardianEmail ?? '').trim().isNotEmpty;
+
+    // Define 'current' enrollment (active or first)
     final active = enrollments.where((e) => e.isActive).toList();
     final current = (active.isNotEmpty) ? active.first : (enrollments.isNotEmpty ? enrollments.first : null);
 
@@ -242,65 +308,148 @@ class _OverviewTab extends StatelessWidget {
           slivers: [
             SliverOverlapInjector(handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context)),
             SliverPadding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
-                  // Real actions: copy key values (no external packages)
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      _ActionBtn(
-                        icon: Icons.copy,
-                        label: "Copy Admission ID",
-                        onTap: () => _copy(context, student.admissionNumber ?? "N/A"),
-                      ),
-                      _ActionBtn(
-                        icon: Icons.copy,
-                        label: "Copy Guardian Phone",
-                        color: AppColors.successGreen,
-                        onTap: () => _copy(context, student.guardianPhone ?? "N/A"),
-                      ),
-                    ],
+                  _SectionTitle(title: "BILLING CORE"),
+                  const SizedBox(height: 12),
+                  
+                  // Admission Card (Matches Image 2 Top Card)
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E2029), // Slightly lighter than black
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(20)),
+                      boxShadow: [
+                         BoxShadow(color: Colors.black.withAlpha(50), blurRadius: 10, offset: const Offset(0, 5))
+                      ]
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text("ADMISSION ID", style: TextStyle(color: AppColors.textGrey, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                            GestureDetector(
+                              onTap: () => _copy(context, student.admissionNumber ?? ""),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surfaceLightGrey.withAlpha(30),
+                                  borderRadius: BorderRadius.circular(20)
+                                ),
+                                child: const Row(
+                                  children: [
+                                    Icon(Icons.copy, size: 12, color: Colors.white),
+                                    SizedBox(width: 6),
+                                    Text("Copy", style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                              ),
+                            )
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          student.admissionNumber ?? "N/A",
+                          style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: 1),
+                        ),
+                        const SizedBox(height: 20),
+                        Divider(color: AppColors.surfaceLightGrey.withAlpha(20)),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _DetailColumn(
+                                label: "STUDENT TYPE",
+                                value: student.type.name.capitalize(),
+                                icon: Icons.school,
+                              ),
+                            ),
+                            Expanded(
+                              child: _DetailColumn(
+                                label: "TUITION (PER PERIOD)",
+                                value: current == null ? "N/A" : _money(current.tuitionAmount),
+                                icon: Icons.payments_outlined,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
+
                   const SizedBox(height: 24),
+                  _SectionTitle(title: "PRIMARY PAYER"),
+                  const SizedBox(height: 12),
 
-                  _SectionHeader(title: "IDENTITY"),
-                  _InfoCard(
-                    children: [
-                      _InfoRow("Admission ID", student.admissionNumber ?? "N/A"),
-                      _InfoRow("Gender", _prettyGender(student.gender)),
-                      _InfoRow("Type", student.type.name.toUpperCase()),
-                      _InfoRow("Status", student.status.name.toUpperCase()),
-                    ],
+                  // Guardian Card (Matches Image 2 Bottom Card)
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E2029),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(20)),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              backgroundColor: AppColors.surfaceLightGrey.withAlpha(50),
+                              child: const Icon(Icons.person, color: Colors.white),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    student.guardianName ?? "No Guardian",
+                                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                                  ),
+                                  Text(
+                                    student.guardianRelationship ?? 'Guardian',
+                                    style: const TextStyle(color: AppColors.textGrey, fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryBlue.withAlpha(30),
+                                borderRadius: BorderRadius.circular(4)
+                              ),
+                              child: const Text("GUARDIAN", style: TextStyle(color: AppColors.primaryBlue, fontSize: 10, fontWeight: FontWeight.bold)),
+                            )
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _ActionLargeBtn(
+                                icon: Icons.phone,
+                                label: "Call Mobile",
+                                onTap: hasPhone ? () => _launchPhone(context, student.guardianPhone!) : null,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _ActionLargeBtn(
+                                icon: Icons.email,
+                                label: "Send Email",
+                                onTap: hasEmail ? () => _launchEmail(context, student.guardianEmail!, student.fullName) : null,
+                              ),
+                            ),
+                          ],
+                        )
+                      ],
+                    ),
                   ),
-
-                  const SizedBox(height: 24),
-
-                  _SectionHeader(title: "CURRENT ENROLLMENT"),
-                  _InfoCard(
-                    children: [
-                      _InfoRow("Grade Level", current?.gradeLevel ?? "N/A"),
-                      _InfoRow("Stream", current?.classStream ?? "N/A"),
-                      _InfoRow(
-                        "Enrollment Date",
-                        (current?.enrollmentDate ?? current?.createdAt)?.toIso8601String() ?? "N/A",
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  _SectionHeader(title: "GUARDIAN"),
-                  _InfoCard(
-                    children: [
-                      _InfoRow("Name", student.guardianName ?? "N/A"),
-                      _InfoRow("Phone", student.guardianPhone ?? "N/A"),
-                      _InfoRow("Email", student.guardianEmail ?? "N/A"),
-                      _InfoRow("Relation", student.guardianRelationship ?? "N/A"),
-                    ],
-                  ),
-
                   const SizedBox(height: 80),
                 ]),
               ),
@@ -314,16 +463,106 @@ class _OverviewTab extends StatelessWidget {
   static Future<void> _copy(BuildContext context, String value) async {
     await Clipboard.setData(ClipboardData(text: value));
     ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Copied info"), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  static Future<void> _launchPhone(BuildContext context, String phone) async {
+    final uri = Uri(scheme: 'tel', path: phone);
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      _showLaunchError(context);
+    }
+  }
+
+  static Future<void> _launchEmail(BuildContext context, String email, String studentName) async {
+    final uri = Uri(
+      scheme: 'mailto',
+      path: email,
+      queryParameters: {'subject': 'Guardian Contact: $studentName'},
+    );
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      _showLaunchError(context);
+    }
+  }
+
+  static void _showLaunchError(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text("Copied to clipboard"),
+        content: Text("Could not open the app."),
+        backgroundColor: AppColors.errorRed,
         behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  String _money(double value) => "\$${value.toStringAsFixed(2)}";
+}
+
+class _DetailColumn extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  const _DetailColumn({required this.label, required this.value, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 12, color: AppColors.textGrey),
+            const SizedBox(width: 6),
+            Text(label, style: const TextStyle(color: AppColors.textGrey, fontSize: 10, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(value, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+      ],
+    );
+  }
+}
+
+class _ActionLargeBtn extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  const _ActionLargeBtn({required this.icon, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: enabled ? AppColors.backgroundBlack : AppColors.surfaceDarkGrey,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(30)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: enabled ? AppColors.textGrey : AppColors.surfaceLightGrey, size: 20),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: enabled ? Colors.white : AppColors.textGrey,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
 // =============================================================================
-// Tab: Finance (NO PLACEBO: real invoices + payments)
+// Tab: Finance (Integrated Image 1 UI)
 // =============================================================================
 
 class _FinanceTab extends StatelessWidget {
@@ -334,40 +573,19 @@ class _FinanceTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final financeVm = context.watch<StudentFinanceViewModel?>();
 
-    if (financeVm == null) {
-      return const Center(
-        child: Text("Finance context unavailable.", style: TextStyle(color: AppColors.textGrey)),
-      );
-    }
-
-    if (financeVm.isLoading) {
+    if (financeVm == null || financeVm.isLoading) {
       return const Center(child: CircularProgressIndicator(color: AppColors.primaryBlue));
-    }
-
-    if (financeVm.error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Text(financeVm.error!, style: const TextStyle(color: AppColors.errorRed)),
-        ),
-      );
     }
 
     final invoices = financeVm.invoices;
     final payments = financeVm.payments;
-
     final totalInvoiced = invoices.fold<double>(0.0, (s, i) => s + i.totalAmount);
     final totalPaid = payments.fold<double>(0.0, (s, p) => s + p.amount);
-
-    // Computed outstanding from records
-    final computedOutstanding = (totalInvoiced - totalPaid) < 0 ? 0.0 : (totalInvoiced - totalPaid);
-
-    // Your system also maintains student.fees_owed; detect mismatch (no silent failure)
-    final storedOutstanding = student.feesOwed;
-    final delta = (storedOutstanding - computedOutstanding).abs();
-    final mismatch = delta > 0.01;
-
+    final outstanding = (totalInvoiced - totalPaid) < 0 ? 0.0 : (totalInvoiced - totalPaid);
     final progress = totalInvoiced <= 0 ? 0.0 : (totalPaid / totalInvoiced).clamp(0.0, 1.0);
+    final nextDueDate = _nextDueDate(invoices);
+    final hasGuardianPhone = (student.guardianPhone ?? '').trim().isNotEmpty;
+    final hasGuardianEmail = (student.guardianEmail ?? '').trim().isNotEmpty;
 
     return Builder(
       builder: (context) {
@@ -376,42 +594,426 @@ class _FinanceTab extends StatelessWidget {
           slivers: [
             SliverOverlapInjector(handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context)),
             SliverPadding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
-                  _FinanceSummaryCard(
-                    outstanding: storedOutstanding,
-                    computedOutstanding: computedOutstanding,
-                    totalInvoiced: totalInvoiced,
-                    totalPaid: totalPaid,
-                    progress: progress,
-                    mismatch: mismatch,
+                  
+                  // Big Outstanding Card (Image 1 Style)
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E2029),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(20)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text("TOTAL OUTSTANDING", style: TextStyle(color: AppColors.textGrey, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                            Icon(Icons.wallet, color: AppColors.surfaceLightGrey.withAlpha(50), size: 32)
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          "\$${outstanding.toStringAsFixed(2)}",
+                          style: const TextStyle(color: Colors.white, fontSize: 42, fontWeight: FontWeight.w900, fontFamily: 'JetBrains Mono'),
+                        ),
+                        const SizedBox(height: 24),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text("PAYMENT PLAN PROGRESS", style: TextStyle(color: AppColors.textGrey, fontSize: 10, fontWeight: FontWeight.bold)),
+                            Text("${(progress * 100).toInt()}% PAID", style: const TextStyle(color: AppColors.primaryBlue, fontSize: 10, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: LinearProgressIndicator(
+                            value: progress,
+                            backgroundColor: AppColors.backgroundBlack,
+                            color: AppColors.primaryBlue,
+                            minHeight: 10,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text("Paid: \$${totalPaid.toStringAsFixed(0)}", style: const TextStyle(color: AppColors.textGrey, fontSize: 11)),
+                            Text("Total: \$${totalInvoiced.toStringAsFixed(0)}", style: const TextStyle(color: AppColors.textGrey, fontSize: 11)),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+                        if (hasGuardianPhone || hasGuardianEmail) ...[
+                          const SizedBox(height: 20),
+                          _NotificationActions(
+                            student: student,
+                            outstanding: outstanding,
+                            nextDueDate: nextDueDate,
+                            hasGuardianEmail: hasGuardianEmail,
+                            hasGuardianPhone: hasGuardianPhone,
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
 
+                  const SizedBox(height: 32),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _SectionTitle(title: "RECENT INVOICES"),
+                      const Text("See All", style: TextStyle(color: AppColors.primaryBlue, fontSize: 12, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
                   const SizedBox(height: 16),
-
-                  if (mismatch)
-                    _WarningCard(
-                      title: "DATA MISMATCH DETECTED",
-                      body:
-                          "student.fees_owed = \$${storedOutstanding.toStringAsFixed(2)} "
-                          "but invoices-payments = \$${computedOutstanding.toStringAsFixed(2)}.\n"
-                          "This will cause screens to disagree unless you reconcile.",
-                    ),
-
-                  const SizedBox(height: 24),
-                  _SectionHeader(title: "INVOICES"),
+                  
                   if (invoices.isEmpty)
-                    const _EmptyHint(text: "No invoices found for this student.")
+                     const Padding(padding: EdgeInsets.all(20), child: Text("No invoices found.", style: TextStyle(color: AppColors.textGrey)))
                   else
-                    ...invoices.map((inv) => _InvoiceRow(inv: inv)),
+                    ...invoices.take(3).map((inv) => _InvoiceTile(inv: inv)),
 
                   const SizedBox(height: 24),
-                  _SectionHeader(title: "PAYMENTS"),
+                  _SectionTitle(title: "PAYMENT HISTORY"),
+                  const SizedBox(height: 16),
+                  
                   if (payments.isEmpty)
-                    const _EmptyHint(text: "No payments recorded for this student.")
+                     const Padding(padding: EdgeInsets.all(20), child: Text("No payments found.", style: TextStyle(color: AppColors.textGrey)))
                   else
-                    ...payments.map((p) => _PaymentRow(p: p)),
+                    ...payments.take(3).map((p) => _PaymentTile(p: p)),
+
+                  const SizedBox(height: 80),
+                ]),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  DateTime? _nextDueDate(List<Invoice> invoices) {
+    final unpaid = invoices.where((i) => i.status != InvoiceStatus.paid).toList();
+    if (unpaid.isEmpty) return null;
+    unpaid.sort((a, b) => a.dueDate.compareTo(b.dueDate));
+    return unpaid.first.dueDate;
+  }
+}
+
+class _NotificationActions extends StatelessWidget {
+  final Student student;
+  final double outstanding;
+  final DateTime? nextDueDate;
+  final bool hasGuardianPhone;
+  final bool hasGuardianEmail;
+
+  const _NotificationActions({
+    required this.student,
+    required this.outstanding,
+    required this.nextDueDate,
+    required this.hasGuardianEmail,
+    required this.hasGuardianPhone,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final message = _buildMessage();
+    return Row(
+      children: [
+        if (hasGuardianPhone)
+          Expanded(
+            child: ElevatedButton.icon(
+              onPressed: () => _launchWhatsApp(context, message),
+              icon: const Icon(Icons.chat_bubble_outline, size: 18),
+              label: const Text("WhatsApp Parent"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF25D366),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
+          ),
+        if (hasGuardianPhone && hasGuardianEmail) const SizedBox(width: 12),
+        if (hasGuardianEmail)
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: () => _launchEmail(context, message),
+              icon: const Icon(Icons.alternate_email, size: 18),
+              label: const Text("Email Parent"),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primaryBlue,
+                side: BorderSide(color: AppColors.primaryBlue.withAlpha(120)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  String _buildMessage() {
+    final studentName = student.fullName;
+    final dueText = _dueText();
+    final billing = student.billingCycle.trim().isEmpty ? "" : "Billing cycle: ${student.billingCycle}.";
+    return "Hello ${student.guardianName ?? 'Parent'}, $studentName owes \$${outstanding.toStringAsFixed(2)}. $dueText $billing";
+  }
+
+  String _dueText() {
+    if (nextDueDate == null) return "No due date set.";
+    final date = nextDueDate!.toIso8601String().split('T')[0];
+    final days = nextDueDate!.difference(DateTime.now()).inDays;
+    if (days < 0) return "Due date: $date (overdue).";
+    if (days == 0) return "Due date: $date (today).";
+    if (days <= 7) return "Due date: $date (in $days days).";
+    return "Due date: $date.";
+  }
+
+  Future<void> _launchWhatsApp(BuildContext context, String message) async {
+    final phone = (student.guardianPhone ?? '').replaceAll(RegExp(r'\D'), '');
+    final uri = Uri.parse("https://wa.me/$phone?text=${Uri.encodeComponent(message)}");
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      _showLaunchError(context);
+    }
+  }
+
+  Future<void> _launchEmail(BuildContext context, String message) async {
+    final email = (student.guardianEmail ?? '').trim();
+    final uri = Uri(
+      scheme: 'mailto',
+      path: email,
+      queryParameters: {
+        'subject': 'Payment Reminder: ${student.fullName}',
+        'body': message,
+      },
+    );
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      _showLaunchError(context);
+    }
+  }
+
+  void _showLaunchError(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Could not open messaging app."),
+        backgroundColor: AppColors.errorRed,
+      ),
+    );
+  }
+}
+
+class _InvoiceTile extends StatelessWidget {
+  final Invoice inv;
+  const _InvoiceTile({required this.inv});
+
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = inv.status == InvoiceStatus.paid ? AppColors.successGreen : Colors.orange;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E2029),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.orange.withAlpha(20),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.description, color: Colors.orange, size: 20),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(inv.title ?? "Invoice", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                Text("Due ${inv.dueDate.toIso8601String().split('T')[0]}", style: const TextStyle(color: AppColors.textGrey, fontSize: 12)),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text("\$${inv.totalAmount.toStringAsFixed(2)}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: statusColor.withAlpha(30),
+                  borderRadius: BorderRadius.circular(4)
+                ),
+                child: Text(inv.status.name.toUpperCase(), style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold)),
+              )
+            ],
+          )
+        ],
+      ),
+    );
+  }
+}
+
+class _PaymentTile extends StatelessWidget {
+  final Payment p;
+  const _PaymentTile({required this.p});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E2029),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.primaryBlue.withAlpha(20),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.credit_card, color: AppColors.primaryBlue, size: 20),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Payment • ${p.method}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                Text(p.receivedAt.toIso8601String().split('T')[0], style: const TextStyle(color: AppColors.textGrey, fontSize: 12)),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text("\$${p.amount.toStringAsFixed(2)}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+              const SizedBox(height: 4),
+              const Text("Success", style: TextStyle(color: AppColors.successGreen, fontSize: 10, fontWeight: FontWeight.bold)),
+            ],
+          )
+        ],
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// Tab: Academic (Integrated Image 3 "Journey" & "Subject List" UI)
+// =============================================================================
+
+class _AcademicTab extends StatelessWidget {
+  final List<Enrollment> enrollments;
+  const _AcademicTab({required this.enrollments});
+
+  @override
+  Widget build(BuildContext context) {
+    final active = enrollments.where((e) => e.isActive).toList();
+    final current = (active.isNotEmpty) ? active.first : (enrollments.isNotEmpty ? enrollments.first : null);
+    
+    // Calculate Journey Duration
+    final start = current?.enrollmentDate ?? current?.createdAt;
+    final duration = start == null ? null : DateTime.now().difference(start);
+    final years = duration == null ? 0 : (duration.inDays / 365).floor();
+    final months = duration == null ? 0 : ((duration.inDays % 365) / 30).floor();
+    final timeStr = duration == null ? "Unknown" : (years > 0 ? "$years Yrs, $months Mos" : "$months Mos");
+
+    return Builder(
+      builder: (context) {
+        return CustomScrollView(
+          key: const PageStorageKey("academic"),
+          slivers: [
+            SliverOverlapInjector(handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context)),
+            SliverPadding(
+              padding: const EdgeInsets.all(20),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  _SectionTitle(title: "STUDENT JOURNEY"),
+                  const SizedBox(height: 12),
+
+                  // Journey Card (Image 3 Style)
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E2029),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(20)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text("TIME WITH SCHOOL", style: TextStyle(color: AppColors.textGrey, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryBlue.withAlpha(20),
+                                shape: BoxShape.circle
+                              ),
+                              child: const Icon(Icons.school, size: 16, color: AppColors.primaryBlue),
+                            )
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          timeStr,
+                          style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text("ENROLLED", style: TextStyle(color: AppColors.textGrey, fontSize: 10)),
+                                const SizedBox(height: 4),
+                                Text(
+                                  start != null ? start.toIso8601String().split('T')[0] : "Unknown",
+                                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          ],
+                        )
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _SectionTitle(title: "CURRENT SUBJECT ENROLLMENT"),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceLightGrey.withAlpha(20),
+                          borderRadius: BorderRadius.circular(4)
+                        ),
+                        child: Text("Term 1 - ${DateTime.now().year}", style: const TextStyle(color: AppColors.textGrey, fontSize: 10)),
+                      )
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  if (current?.subjects.isEmpty ?? true)
+                     const Padding(padding: EdgeInsets.all(20), child: Text("No subjects enrolled.", style: TextStyle(color: AppColors.textGrey)))
+                  else
+                    ...current!.subjects.map((sub) => _SubjectTile(subject: sub)),
 
                   const SizedBox(height: 80),
                 ]),
@@ -424,473 +1026,85 @@ class _FinanceTab extends StatelessWidget {
   }
 }
 
-class _FinanceSummaryCard extends StatelessWidget {
-  final double outstanding;
-  final double computedOutstanding;
-  final double totalInvoiced;
-  final double totalPaid;
-  final double progress;
-  final bool mismatch;
+class _SubjectTile extends StatelessWidget {
+  final String subject;
+  const _SubjectTile({required this.subject});
 
-  const _FinanceSummaryCard({
-    required this.outstanding,
-    required this.computedOutstanding,
-    required this.totalInvoiced,
-    required this.totalPaid,
-    required this.progress,
-    required this.mismatch,
-  });
+  IconData _getIcon(String s) {
+    final l = s.toLowerCase();
+    if (l.contains("math")) return Icons.calculate;
+    if (l.contains("sci") || l.contains("chem") || l.contains("bio") || l.contains("phys")) return Icons.science;
+    if (l.contains("lit") || l.contains("eng")) return Icons.menu_book;
+    if (l.contains("art") || l.contains("music")) return Icons.music_note;
+    if (l.contains("sport") || l.contains("gym")) return Icons.sports_soccer;
+    return Icons.book;
+  }
+
+  Color _getColor(String s) {
+    final l = s.toLowerCase();
+    if (l.contains("math")) return Colors.blueAccent;
+    if (l.contains("lit")) return Colors.purpleAccent;
+    if (l.contains("chem")) return Colors.orangeAccent;
+    if (l.contains("sport")) return Colors.greenAccent;
+    return AppColors.primaryBlue;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final danger = outstanding > 0;
+    final color = _getColor(subject);
     return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceDarkGrey,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(30)),
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text("Outstanding Balance", style: TextStyle(color: Colors.white70, fontSize: 14)),
-              Text(
-                "\$${outstanding.toStringAsFixed(2)}",
-                style: TextStyle(
-                  color: danger ? AppColors.errorRed : AppColors.successGreen,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: progress,
-              backgroundColor: AppColors.surfaceLightGrey.withAlpha(50),
-              color: AppColors.successGreen,
-              minHeight: 8,
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text("${(progress * 100).toInt()}% Paid", style: const TextStyle(color: AppColors.textGrey, fontSize: 12)),
-              Text("Invoiced: \$${totalInvoiced.toStringAsFixed(2)}", style: const TextStyle(color: AppColors.textGrey, fontSize: 12)),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text("Paid: \$${totalPaid.toStringAsFixed(2)}", style: const TextStyle(color: AppColors.textGrey, fontSize: 12)),
-              Text(
-                mismatch ? "Check: FAIL" : "Check: OK",
-                style: TextStyle(
-                  color: mismatch ? AppColors.errorRed : AppColors.successGreen,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "Computed outstanding (invoices - payments): \$${computedOutstanding.toStringAsFixed(2)}",
-            style: const TextStyle(color: AppColors.textGrey, fontSize: 11),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InvoiceRow extends StatelessWidget {
-  final Invoice inv;
-  const _InvoiceRow({required this.inv});
-
-  @override
-  Widget build(BuildContext context) {
-    final status = inv.status.name.toUpperCase();
-    final due = inv.dueDate.toIso8601String().split('T').first;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceDarkGrey,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(20)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(inv.title ?? inv.invoiceNumber, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4),
-              Text("Due: $due • $status", style: const TextStyle(color: AppColors.textGrey, fontSize: 12)),
-            ]),
-          ),
-          Text(
-            "\$${inv.totalAmount.toStringAsFixed(2)}",
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PaymentRow extends StatelessWidget {
-  final Payment p;
-  const _PaymentRow({required this.p});
-
-  @override
-  Widget build(BuildContext context) {
-    final date = p.receivedAt.toIso8601String().split('T').first;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceDarkGrey,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(20)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text("Payment • ${p.method}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4),
-              Text("Date: $date", style: const TextStyle(color: AppColors.textGrey, fontSize: 12)),
-              if ((p.reference ?? '').trim().isNotEmpty)
-                Text("Ref: ${p.reference}", style: const TextStyle(color: AppColors.textGrey, fontSize: 12)),
-            ]),
-          ),
-          Text(
-            "\$${p.amount.toStringAsFixed(2)}",
-            style: const TextStyle(color: AppColors.successGreen, fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// =============================================================================
-// Tab: Academic (subjects now come from Enrollment.subjects JSON)
-// =============================================================================
-
-class _AcademicTab extends StatelessWidget {
-  final List<Enrollment> enrollments;
-  const _AcademicTab({required this.enrollments});
-
-  @override
-  Widget build(BuildContext context) {
-    return Builder(
-      builder: (context) {
-        return CustomScrollView(
-          key: const PageStorageKey("academic"),
-          slivers: [
-            SliverOverlapInjector(handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context)),
-            SliverPadding(
-              padding: const EdgeInsets.all(16),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate((context, index) {
-                  final e = enrollments[index];
-                  final date = (e.enrollmentDate ?? e.createdAt)?.toIso8601String().split('T').first ?? "N/A";
-                  final subjects = e.subjects;
-
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceDarkGrey,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: e.isActive ? AppColors.primaryBlue.withAlpha(80) : Colors.transparent,
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                e.gradeLevel,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ),
-                            if (e.isActive)
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primaryBlue.withAlpha(30),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: AppColors.primaryBlue.withAlpha(80)),
-                                ),
-                                child: const Text(
-                                  "ACTIVE",
-                                  style: TextStyle(color: AppColors.primaryBlue, fontWeight: FontWeight.bold, fontSize: 11),
-                                ),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Text("Enrollment Date: $date", style: const TextStyle(color: AppColors.textGrey, fontSize: 12)),
-                        if ((e.classStream ?? '').trim().isNotEmpty)
-                          Text("Stream: ${e.classStream}", style: const TextStyle(color: AppColors.textGrey, fontSize: 12)),
-
-                        const SizedBox(height: 12),
-                        const Text(
-                          "SUBJECTS",
-                          style: TextStyle(
-                            color: AppColors.textGrey,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.1,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-
-                        if (subjects.isEmpty)
-                          const Text("No subjects recorded.", style: TextStyle(color: AppColors.textGrey, fontSize: 12))
-                        else
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: subjects
-                                .map((s) => Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.backgroundBlack,
-                                        borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(40)),
-                                      ),
-                                      child: Text(
-                                        s,
-                                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
-                                      ),
-                                    ))
-                                .toList(),
-                          ),
-                      ],
-                    ),
-                  );
-                }, childCount: enrollments.length),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-// =============================================================================
-// No placebo FAB: disabled but explicit
-// =============================================================================
-
-class _LogPaymentFab extends StatelessWidget {
-  final Student student;
-  const _LogPaymentFab({required this.student});
-
-  @override
-  Widget build(BuildContext context) {
-    return FloatingActionButton.extended(
-      onPressed: null, // disabled on purpose (not fake)
-      backgroundColor: AppColors.surfaceLightGrey,
-      icon: const Icon(Icons.payments_outlined, color: Colors.white54),
-      label: const Text(
-        "LOG PAYMENT (NEXT)",
-        style: TextStyle(color: Colors.white54, fontWeight: FontWeight.bold),
-      ),
-    );
-  }
-}
-
-// =============================================================================
-// Shared helpers
-// =============================================================================
-
-class _StatusChip extends StatelessWidget {
-  final String text;
-  final Color color;
-  const _StatusChip({required this.text, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withAlpha(30),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withAlpha(80)),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold),
-      ),
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  const _SectionHeader({required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12, left: 4),
-      child: Text(
-        title,
-        style: const TextStyle(
-          color: AppColors.textGrey,
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 1.2,
-        ),
-      ),
-    );
-  }
-}
-
-class _InfoCard extends StatelessWidget {
-  final List<Widget> children;
-  const _InfoCard({required this.children});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceDarkGrey,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(20)),
-      ),
-      child: Column(children: children),
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  final String label;
-  final String value;
-  const _InfoRow(this.label, this.value);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 130,
-            child: Text(label, style: const TextStyle(color: AppColors.textGrey, fontSize: 13)),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500, fontSize: 14),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActionBtn extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  final Color? color;
-
-  const _ActionBtn({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final c = color ?? Colors.white;
-    return Material(
-      color: AppColors.surfaceDarkGrey,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(20)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 18, color: c),
-              const SizedBox(width: 10),
-              Text(label, style: TextStyle(color: c, fontWeight: FontWeight.bold, fontSize: 13)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyHint extends StatelessWidget {
-  final String text;
-  const _EmptyHint({required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 24),
-      child: Center(child: Text(text, style: const TextStyle(color: AppColors.textGrey))),
-    );
-  }
-}
-
-class _WarningCard extends StatelessWidget {
-  final String title;
-  final String body;
-  const _WarningCard({required this.title, required this.body});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.errorRed.withAlpha(18),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.errorRed.withAlpha(120)),
+        color: const Color(0xFF1E2029),
+        borderRadius: BorderRadius.circular(16),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Text(title, style: const TextStyle(color: AppColors.errorRed, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Text(body, style: const TextStyle(color: Colors.white70)),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withAlpha(20),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(_getIcon(subject), color: color, size: 20),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(subject, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                const Text("Core • Tuition Included", style: TextStyle(color: AppColors.textGrey, fontSize: 10, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+          Icon(Icons.check_circle, color: AppColors.surfaceLightGrey.withAlpha(50), size: 18)
         ],
       ),
     );
+  }
+}
+
+// =============================================================================
+// Shared Helpers
+// =============================================================================
+
+class _SectionTitle extends StatelessWidget {
+  final String title;
+  const _SectionTitle({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      title,
+      style: const TextStyle(color: AppColors.textGrey, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+    );
+  }
+}
+
+extension StringExtension on String {
+  String capitalize() {
+    return "${this[0].toUpperCase()}${substring(1).toLowerCase()}";
   }
 }

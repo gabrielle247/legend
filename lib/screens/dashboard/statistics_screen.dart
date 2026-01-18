@@ -12,16 +12,18 @@ class StatisticsScreen extends StatefulWidget {
 }
 
 class _StatisticsScreenState extends State<StatisticsScreen> {
-  // Local UI State for Filters (Visual toggles)
+  // Local UI State for Filters
   String _timeFilter = 'This Term';
   String _gradeFilter = 'All Grades';
 
   @override
   void initState() {
     super.initState();
-    // TRIGGER: Tell the VM to load data when screen opens
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<StatsViewModel>().loadStats();
+      context.read<StatsViewModel>().loadStats(
+            timeFilter: _timeFilter,
+            gradeFilter: _gradeFilter,
+          );
     });
   }
 
@@ -29,114 +31,101 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.backgroundBlack,
-
-      // HEADER
-      appBar: AppBar(
-        backgroundColor: AppColors.backgroundBlack,
-        elevation: 0,
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 20, color: Colors.white),
-          onPressed: () => context.pop(),
-        ),
-        title: const Text(
-          'Analytics',
-          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.download, color: AppColors.primaryBlue),
-            tooltip: "Export Report",
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Exporting PDF...'), 
-                  backgroundColor: AppColors.surfaceLightGrey
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-
-      // BODY (Consumed from ViewModel)
+      appBar: _buildAppBar(context),
       body: Consumer<StatsViewModel>(
         builder: (context, vm, child) {
-          
           // 1. LOADING
           if (vm.isLoading) {
-            return const Center(child: CircularProgressIndicator(color: AppColors.primaryBlue));
-          }
-
-          // 2. ERROR
-          if (vm.error != null) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline, color: AppColors.errorRed, size: 48),
-                  const SizedBox(height: 16),
-                  Text("Error: ${vm.error}", style: const TextStyle(color: AppColors.textGrey)),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: vm.refresh,
-                    child: const Text("Retry"),
-                  )
-                ],
+            return const Center(
+              child: CircularProgressIndicator(
+                color: AppColors.primaryBlue,
+                strokeWidth: 2,
               ),
             );
           }
 
+          // 2. ERROR
+          if (vm.error != null) {
+            return _buildErrorState(vm);
+          }
+
           // 3. DATA READY
           final data = vm.data;
+          final totalRevenue = data.totalRevenue;
+          final totalOutstanding = data.outstandingDebt;
+          final collectionRate = _collectionRate(totalRevenue, totalOutstanding);
 
           return RefreshIndicator(
-            onRefresh: vm.refresh,
+            onRefresh: () => vm.loadStats(
+              timeFilter: _timeFilter,
+              gradeFilter: _gradeFilter,
+            ),
             color: AppColors.primaryBlue,
             backgroundColor: AppColors.surfaceDarkGrey,
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 1. FILTER BAR
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        _buildFilterChip('This Term', _timeFilter, (val) => setState(() => _timeFilter = val)),
-                        const SizedBox(width: 8),
-                        _buildFilterChip('Last Term', _timeFilter, (val) => setState(() => _timeFilter = val)),
-                        const SizedBox(width: 8),
-                        _buildFilterChip('All Grades', _gradeFilter, (val) => setState(() => _gradeFilter = val)),
-                      ],
-                    ),
-                  ),
-
+                  // --- FILTERS ---
+                  _buildFilterSection(context),
                   const SizedBox(height: 24),
 
-                  // 2. KPI CARDS
+                  // --- PRIMARY METRICS (HERO CARDS) ---
                   Row(
                     children: [
                       Expanded(
-                        child: _buildKpiCard(
-                          title: "Revenue (7 Days)",
-                          value: "\$${(data.totalRevenue).toStringAsFixed(0)}",
-                          trend: "Real-time", 
-                          isPositive: true,
-                          icon: Icons.show_chart,
+                        child: _buildHeroKpiCard(
+                          title: "Total Revenue",
+                          value: _formatAmount(totalRevenue),
+                          subtitle: "Received",
+                          icon: Icons.attach_money,
+                          gradientColors: [
+                            AppColors.primaryBlue,
+                            AppColors.primaryBlue.withAlpha(150),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 12),
                       Expanded(
-                        child: _buildKpiCard(
-                          title: "Total Outstanding",
-                          value: "\$${(data.outstandingDebt / 1000).toStringAsFixed(1)}k",
-                          trend: "Unpaid Fees",
-                          isPositive: false,
-                          icon: Icons.warning_amber,
-                          color: AppColors.errorRed,
+                        child: _buildHeroKpiCard(
+                          title: "Outstanding Debt",
+                          value: _formatAmount(totalOutstanding),
+                          subtitle: "Pending",
+                          icon: Icons.warning_amber_rounded,
+                          gradientColors: [
+                            AppColors.errorRed.withAlpha(200),
+                            AppColors.errorRed.withAlpha(100),
+                          ],
+                          isAlert: true,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // --- SECONDARY METRICS ---
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildSecondaryKpiCard(
+                          title: "Active Students",
+                          value: data.activeStudents.toString(),
+                          icon: Icons.people,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildSecondaryKpiCard(
+                          title: "Collection Rate",
+                          value: "${(collectionRate * 100).toStringAsFixed(0)}%",
+                          icon: Icons.pie_chart,
+                          color: collectionRate >= 0.7
+                              ? AppColors.successGreen
+                              : Colors.orangeAccent,
                         ),
                       ),
                     ],
@@ -144,127 +133,26 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
 
                   const SizedBox(height: 32),
 
-                  // 3. REVENUE TREND CHART
-                  const Text(
-                    "Income Trajectory",
-                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    "Daily collections (in thousands)",
-                    style: TextStyle(color: AppColors.textGrey, fontSize: 12),
-                  ),
+                  // --- REVENUE TRENDS ---
+                  _buildSectionHeader("Revenue Trends", _timeFilter),
                   const SizedBox(height: 16),
-                  Container(
-                    height: 200,
-                    padding: const EdgeInsets.only(right: 16, top: 24, bottom: 12),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceDarkGrey,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(20)),
-                    ),
-                    child: LineChart(
-                      LineChartData(
-                        gridData: const FlGridData(show: false),
-                        titlesData: const FlTitlesData(show: false),
-                        borderData: FlBorderData(show: false),
-                        minY: 0,
-                        lineBarsData: [
-                          LineChartBarData(
-                            spots: data.revenueTrend,
-                            isCurved: true,
-                            color: AppColors.primaryBlue,
-                            barWidth: 3,
-                            isStrokeCapRound: true,
-                            dotData: const FlDotData(show: true),
-                            belowBarData: BarAreaData(
-                              show: true,
-                              color: AppColors.primaryBlue.withAlpha(30),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                  _buildChartContainer(data.revenueTrend),
 
                   const SizedBox(height: 32),
 
-                  // 4. DEBT BY GRADE (Dynamic Bars)
-                  const Text(
-                    "Debt Distribution",
-                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
+                  // --- DEBT BY GRADE ---
+                  _buildGradeFilterHeader(vm.availableGrades),
                   const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceDarkGrey,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Column(
-                      children: data.debtByGrade.isEmpty 
-                      ? [const Padding(padding: EdgeInsets.all(8.0), child: Text("No debt records found.", style: TextStyle(color: AppColors.textGrey)))]
-                      : data.debtByGrade.map((item) {
-                          // Dynamic Max Logic for scaling
-                          final double maxDebtInList = data.debtByGrade.fold(0.0, (prev, e) {
-                            final amt = (e['amount'] as num).toDouble();
-                            return amt > prev ? amt : prev;
-                          });
-                          
-                          final double amount = (item['amount'] as num).toDouble();
-                          final double pct = maxDebtInList > 0 ? (amount / maxDebtInList).clamp(0.0, 1.0) : 0.0;
-                          
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12.0),
-                            child: Row(
-                              children: [
-                                SizedBox(
-                                  width: 60,
-                                  child: Text(
-                                    item['grade'] ?? 'N/A',
-                                    style: const TextStyle(color: AppColors.textGrey, fontWeight: FontWeight.bold, fontSize: 12),
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Stack(
-                                    children: [
-                                      Container(
-                                        height: 8,
-                                        decoration: BoxDecoration(
-                                          color: AppColors.surfaceLightGrey.withAlpha(50),
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                      ),
-                                      FractionallySizedBox(
-                                        widthFactor: pct,
-                                        child: Container(
-                                          height: 8,
-                                          decoration: BoxDecoration(
-                                            color: pct > 0.7 ? AppColors.errorRed : Colors.orangeAccent,
-                                            borderRadius: BorderRadius.circular(4),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                SizedBox(
-                                  width: 60,
-                                  child: Text(
-                                    "\$${amount.toStringAsFixed(0)}",
-                                    textAlign: TextAlign.end,
-                                    style: const TextStyle(color: Colors.white, fontSize: 12),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
-                    ),
-                  ),
+                  _buildDebtList(data.debtByGrade),
 
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 32),
+
+                  // --- PAYMENT CHANNELS ---
+                  _buildSectionHeader("Payment Channels", ""),
+                  const SizedBox(height: 16),
+                  _buildPaymentChannels(data.paymentMethods),
+
+                  const SizedBox(height: 48), // Bottom padding
                 ],
               ),
             ),
@@ -275,8 +163,84 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // WIDGET HELPERS
+  // SUB-WIDGETS & BUILDERS
   // ---------------------------------------------------------------------------
+
+  PreferredSizeWidget _buildAppBar(BuildContext context) {
+    return AppBar(
+      backgroundColor: AppColors.backgroundBlack,
+      elevation: 0,
+      centerTitle: true,
+      leading: IconButton(
+        icon: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceDarkGrey,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(Icons.arrow_back_ios_new, size: 16, color: Colors.white),
+        ),
+        onPressed: () => context.pop(),
+      ),
+      title: const Text(
+        'Analytics',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.5,
+        ),
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.calendar_today_outlined, color: AppColors.textGrey, size: 20),
+          onPressed: () {
+            // Future feature: Date picker
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildErrorState(StatsViewModel vm) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.cloud_off, color: AppColors.surfaceLightGrey.withAlpha(100), size: 64),
+          const SizedBox(height: 16),
+          Text(
+            "Could not load analytics",
+            style: TextStyle(color: AppColors.textGrey, fontSize: 16),
+          ),
+          const SizedBox(height: 24),
+          TextButton(
+            onPressed: vm.refresh,
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.primaryBlue,
+            ),
+            child: const Text("Tap to Retry"),
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterSection(BuildContext context) {
+    return SizedBox(
+      height: 36,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          _buildFilterChip('This Term', _timeFilter, (val) => _applyFilters(context, val, _gradeFilter)),
+          const SizedBox(width: 8),
+          _buildFilterChip('Last Term', _timeFilter, (val) => _applyFilters(context, val, _gradeFilter)),
+          const SizedBox(width: 8),
+          _buildFilterChip('All Time', _timeFilter, (val) => _applyFilters(context, val, _gradeFilter)),
+        ],
+      ),
+    );
+  }
 
   Widget _buildFilterChip(String label, String currentSelection, Function(String) onSelect) {
     final bool isSelected = label == currentSelection;
@@ -288,37 +252,41 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
         decoration: BoxDecoration(
           color: isSelected ? AppColors.primaryBlue : AppColors.surfaceDarkGrey,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? AppColors.primaryBlue : AppColors.surfaceLightGrey.withAlpha(50),
-          ),
+          border: isSelected
+              ? null
+              : Border.all(color: AppColors.surfaceLightGrey.withAlpha(30)),
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? Colors.white : AppColors.textGrey,
-            fontWeight: FontWeight.bold,
-            fontSize: 12,
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: isSelected ? Colors.white : AppColors.textGrey,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              fontSize: 12,
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildKpiCard({
+  Widget _buildHeroKpiCard({
     required String title,
     required String value,
-    required String trend,
-    required bool isPositive,
+    required String subtitle,
     required IconData icon,
-    Color? color,
+    required List<Color> gradientColors,
+    bool isAlert = false,
   }) {
-    final themeColor = color ?? AppColors.primaryBlue;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceDarkGrey,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(20)),
+        gradient: LinearGradient(
+          colors: gradientColors,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -326,37 +294,423 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: themeColor.withAlpha(20),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, color: themeColor, size: 20),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: isPositive ? AppColors.successGreen.withAlpha(20) : AppColors.errorRed.withAlpha(20),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  trend,
-                  style: TextStyle(
-                    color: isPositive ? AppColors.successGreen : AppColors.errorRed,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
+              Icon(icon, color: Colors.white.withAlpha(200), size: 20),
+              if (isAlert)
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
                   ),
+                )
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            title,
+            style: TextStyle(
+              color: Colors.white.withAlpha(180),
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSecondaryKpiCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceDarkGrey,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(20)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withAlpha(20),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                title,
+                style: const TextStyle(
+                  color: AppColors.textGrey,
+                  fontSize: 11,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          Text(title, style: const TextStyle(color: AppColors.textGrey, fontSize: 12)),
-          const SizedBox(height: 4),
-          Text(value, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
         ],
       ),
     );
+  }
+
+  Widget _buildSectionHeader(String title, String subtitle) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        if (subtitle.isNotEmpty)
+          Text(
+            subtitle,
+            style: const TextStyle(color: AppColors.textGrey, fontSize: 12),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildChartContainer(List<FlSpot> spots) {
+    if (spots.isEmpty) {
+      return Container(
+        height: 200,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceDarkGrey,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: const Text("No chart data available", style: TextStyle(color: AppColors.textGrey)),
+      );
+    }
+
+    return Container(
+      height: 240,
+      padding: const EdgeInsets.only(right: 20, left: 10, top: 24, bottom: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceDarkGrey,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(20)),
+      ),
+      child: LineChart(
+        LineChartData(
+          gridData: FlGridData(
+            show: true,
+            drawVerticalLine: false,
+            horizontalInterval: 1000, 
+            getDrawingHorizontalLine: (value) {
+              return FlLine(
+                color: AppColors.surfaceLightGrey.withAlpha(10),
+                strokeWidth: 1,
+              );
+            },
+          ),
+          titlesData: const FlTitlesData(
+            show: true,
+            rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 22,
+                interval: 1, // Simplified for visual clarity
+                // In a real app, you'd map indexes to dates here
+              ),
+            ),
+          ),
+          borderData: FlBorderData(show: false),
+          minY: 0,
+          lineBarsData: [
+            LineChartBarData(
+              spots: spots,
+              isCurved: true,
+              color: AppColors.primaryBlue,
+              barWidth: 3,
+              isStrokeCapRound: true,
+              dotData: const FlDotData(show: false),
+              belowBarData: BarAreaData(
+                show: true,
+                gradient: LinearGradient(
+                  colors: [
+                    AppColors.primaryBlue.withAlpha(80),
+                    AppColors.primaryBlue.withAlpha(0),
+                  ],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGradeFilterHeader(List<String> grades) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader("Debt by Grade", ""),
+        const SizedBox(height: 12),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _buildFilterChip('All Grades', _gradeFilter, (val) => _applyFilters(context, _timeFilter, val)),
+              ...grades.map((grade) => Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: _buildFilterChip(grade, _gradeFilter, (val) => _applyFilters(context, _timeFilter, val)),
+                  )),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDebtList(List<Map<String, dynamic>> debtData) {
+    if (debtData.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceDarkGrey,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(20)),
+        ),
+        child: const Text("No outstanding debt records.", style: TextStyle(color: AppColors.textGrey)),
+      );
+    }
+
+    double maxVal = 0;
+    for (var i in debtData) {
+      final v = (i['amount'] as num).toDouble();
+      if (v > maxVal) maxVal = v;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceDarkGrey,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(20)),
+      ),
+      child: Column(
+        children: debtData.map((item) {
+          final amt = (item['amount'] as num).toDouble();
+          final pct = maxVal > 0 ? (amt / maxVal) : 0.0;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 50,
+                  child: Text(
+                    item['grade'] ?? '-',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Stack(
+                    children: [
+                      Container(
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: Colors.black.withAlpha(100),
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                      ),
+                      FractionallySizedBox(
+                        widthFactor: pct.clamp(0.0, 1.0),
+                        child: Container(
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: pct > 0.6 ? AppColors.errorRed : AppColors.primaryBlue,
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 70,
+                  child: Text(
+                    _formatAmount(amt),
+                    textAlign: TextAlign.end,
+                    style: TextStyle(
+                      color: pct > 0.6 ? AppColors.errorRed : AppColors.textGrey,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildPaymentChannels(Map<String, double> channels) {
+    if (channels.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceDarkGrey,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: const Center(child: Text("No channel data.", style: TextStyle(color: AppColors.textGrey))),
+      );
+    }
+
+    final total = channels.values.fold(0.0, (p, c) => p + c);
+    final entries = channels.entries.toList();
+    // Sort by value descending for better pie chart visual
+    entries.sort((a, b) => b.value.compareTo(a.value));
+
+    final colors = [
+      AppColors.primaryBlue,
+      Colors.cyanAccent,
+      Colors.purpleAccent,
+      AppColors.errorRed,
+      Colors.orange,
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceDarkGrey,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(20)),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            height: 120,
+            width: 120,
+            child: PieChart(
+              PieChartData(
+                sectionsSpace: 0,
+                centerSpaceRadius: 30,
+                sections: entries.asMap().entries.map((e) {
+                  final idx = e.key;
+                  final item = e.value;
+                  return PieChartSectionData(
+                    color: colors[idx % colors.length],
+                    value: item.value,
+                    radius: 20,
+                    showTitle: false,
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+          const SizedBox(width: 24),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: entries.asMap().entries.map((e) {
+                final idx = e.key;
+                final item = e.value;
+                final percentage = total > 0 ? (item.value / total) : 0.0;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: colors[idx % colors.length],
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          item.key,
+                          style: const TextStyle(color: AppColors.textGrey, fontSize: 13),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text(
+                        "${(percentage * 100).toStringAsFixed(0)}%",
+                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // LOGIC HELPERS
+  // ---------------------------------------------------------------------------
+
+  void _applyFilters(BuildContext context, String time, String grade) {
+    setState(() {
+      _timeFilter = time;
+      _gradeFilter = grade;
+    });
+    // Fire & Forget - VM handles loading state
+    context.read<StatsViewModel>().loadStats(
+          timeFilter: _timeFilter,
+          gradeFilter: _gradeFilter,
+        );
+  }
+
+  double _collectionRate(double revenue, double outstanding) {
+    final total = revenue + outstanding;
+    if (total <= 0) return 0.0;
+    return (revenue / total).clamp(0.0, 1.0);
+  }
+
+  String _formatAmount(double value) {
+    final abs = value.abs();
+    if (abs >= 1000000) return "\$${(value / 1000000).toStringAsFixed(1)}M";
+    if (abs >= 1000) return "\$${(value / 1000).toStringAsFixed(1)}K";
+    return "\$${value.toStringAsFixed(0)}";
   }
 }

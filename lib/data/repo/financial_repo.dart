@@ -16,7 +16,8 @@ abstract class FinanceRepository {
   Future<List<Map<String, dynamic>>> getRecentActivity(String schoolId);
   Future<Invoice?> getInvoiceById(String invoiceId);
   Future<List<InvoiceItem>> getInvoiceItems(String invoiceId);
-  Future<Map<String, dynamic>> getFinanceStats(String schoolId);
+  Future<Map<String, dynamic>> getFinanceStats(String schoolId, {DateTime? startDate, DateTime? endDate});
+  Future<void> addInvoiceItem(String invoiceId, InvoiceItem item);
 }
 
 // =============================================================================
@@ -466,12 +467,28 @@ class PowerSyncFinanceRepository implements FinanceRepository {
   }
 
   @override
-  Future<Map<String, dynamic>> getFinanceStats(String schoolId) async {
+  Future<Map<String, dynamic>> getFinanceStats(String schoolId, {DateTime? startDate, DateTime? endDate}) async {
     try {
-      final revenueResult = await db.getOptional(
-        "SELECT SUM(amount) as total FROM ledger WHERE school_id = ? AND type = 'CREDIT'",
-        [schoolId],
-      );
+      final hasRange = startDate != null && endDate != null;
+      final revenueSql = hasRange
+          ? """
+            SELECT SUM(amount) as total
+            FROM ledger
+            WHERE school_id = ?
+              AND type = 'CREDIT'
+              AND datetime(occurred_at) >= datetime(?)
+              AND datetime(occurred_at) <= datetime(?)
+          """
+          : "SELECT SUM(amount) as total FROM ledger WHERE school_id = ? AND type = 'CREDIT'";
+      final revenueParams = hasRange
+          ? [
+              schoolId,
+              startDate.toUtc().toIso8601String(),
+              endDate.toUtc().toIso8601String(),
+            ]
+          : [schoolId];
+
+      final revenueResult = await db.getOptional(revenueSql, revenueParams);
       final totalRevenue = (revenueResult?['total'] as num?)?.toDouble() ?? 0.0;
 
       final pendingResult = await db.getOptional(
@@ -509,5 +526,71 @@ class PowerSyncFinanceRepository implements FinanceRepository {
     if (diff.inDays == 0) return 'Today';
     if (diff.inDays == 1) return 'Yesterday';
     return '${date.day}/${date.month}';
+  }
+
+  @override
+  Future<void> addInvoiceItem(String invoiceId, InvoiceItem item) async {
+    try {
+      await db.execute('BEGIN');
+
+      final invoiceRow = await db.getOptional(
+        '''
+        SELECT id, school_id, student_id, total_amount
+        FROM invoices
+        WHERE id = ?
+        ''',
+        [invoiceId],
+      );
+      if (invoiceRow == null) {
+        throw Exception("Invoice not found for item insert.");
+      }
+
+      final qty = item.quantity <= 0 ? 1 : item.quantity;
+      final lineTotal = item.amount * qty;
+
+      await db.execute(
+        '''
+        INSERT INTO invoice_items (
+          id, school_id, invoice_id, fee_structure_id,
+          description, amount, quantity, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''',
+        [
+          item.id,
+          item.schoolId,
+          item.invoiceId,
+          item.feeStructureId,
+          item.description,
+          item.amount,
+          qty,
+          DateTime.now().toIso8601String(),
+        ],
+      );
+
+      await db.execute(
+        '''
+        UPDATE invoices
+        SET total_amount = COALESCE(total_amount, 0) + ?
+        WHERE id = ?
+        ''',
+        [lineTotal, invoiceId],
+      );
+
+      await db.execute(
+        '''
+        UPDATE students
+        SET fees_owed = COALESCE(fees_owed, 0) + ?
+        WHERE id = ? AND school_id = ?
+        ''',
+        [lineTotal, invoiceRow['student_id'], invoiceRow['school_id']],
+      );
+
+      await db.execute('COMMIT');
+    } catch (e) {
+      try {
+        await db.execute('ROLLBACK');
+      } catch (_) {}
+      rethrow;
+    }
   }
 }

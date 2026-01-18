@@ -70,6 +70,15 @@ class AuthRepository {
     }
   }
 
+  /// Password Reset Request (OTP Email)
+  Future<void> sendRecoveryOtp(String email) async {
+    try {
+      await _supabase.auth.resetPasswordForEmail(email);
+    } on AuthException catch (e) {
+      throw AppAuthException(_mapAuthError(e.message), e.code);
+    }
+  }
+
   /// Verify OTP (Email or Phone) - Used for Login OR Recovery
   Future<AuthResponse> verifyOtp(String email, String token, OtpType type) async {
     try {

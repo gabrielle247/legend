@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart' show ChangeNotifier;
 import 'package:legend/data/models/all_models.dart';
 import 'package:legend/data/repo/financial_repo.dart';
@@ -10,12 +12,15 @@ class StudentListViewModel extends ChangeNotifier {
   bool _isLoading = false;
   List<Student> _students = [];
   String? _error;
+  StreamSubscription<List<Student>>? _studentsSub;
 
   bool get isLoading => _isLoading;
   List<Student> get students => _students;
   String? get error => _error;
 
-  StudentListViewModel(this._repo, this.schoolId);
+  StudentListViewModel(this._repo, this.schoolId) {
+    _startWatching();
+  }
 
   Future<void> loadStudents() async {
     _isLoading = true;
@@ -43,6 +48,34 @@ class StudentListViewModel extends ChangeNotifier {
       _error = "Failed to delete student: $e";
       notifyListeners();
     }
+  }
+
+  void _startWatching() {
+    if (schoolId.isEmpty) return;
+
+    _studentsSub?.cancel();
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    _studentsSub = _repo.watchStudents(schoolId).listen(
+      (students) {
+        _students = students;
+        _isLoading = false;
+        notifyListeners();
+      },
+      onError: (e) {
+        _error = "Failed to load students: $e";
+        _isLoading = false;
+        notifyListeners();
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _studentsSub?.cancel();
+    super.dispose();
   }
 }
 

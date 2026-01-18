@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart' show ChangeNotifier, debugPrint;
 import 'package:legend/data/models/all_models.dart';
 import 'package:legend/data/repo/dashboard_repo.dart';
@@ -6,6 +8,7 @@ import 'package:legend/data/services/auth/auth.dart';
 class DashboardViewModel extends ChangeNotifier {
   final DashboardRepository _repo;
   final AuthService _authService;
+  StreamSubscription<DashboardStats>? _statsSub;
 
   bool isLoading = true;
   String? error;
@@ -30,6 +33,8 @@ class DashboardViewModel extends ChangeNotifier {
       final user = _authService.user;
       final school = _authService.activeSchool;
       if (user == null || school == null) throw Exception("Session invalid.");
+
+      _startStatsWatch(school.id);
 
       await Future.wait([
         _loadProfile(user.id),
@@ -58,4 +63,24 @@ class DashboardViewModel extends ChangeNotifier {
   }
 
   Future<void> refresh() => init();
+
+  void _startStatsWatch(String schoolId) {
+    _statsSub?.cancel();
+    _statsSub = _repo.watchDashboardStats(schoolId).listen(
+      (next) {
+        stats = next;
+        notifyListeners();
+      },
+      onError: (e) {
+        error = e.toString();
+        notifyListeners();
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _statsSub?.cancel();
+    super.dispose();
+  }
 }

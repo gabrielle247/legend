@@ -158,6 +158,7 @@ final schema = Schema([
     Column.text('class_id'),
     Column.text('enrollment_date'),
     Column.text('subjects'),    // JSON String
+    Column.real('tuition_amount'),
     Column.integer('is_active'),
     Column.text('created_at'),
   ], indexes: [

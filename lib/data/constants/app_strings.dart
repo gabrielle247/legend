@@ -16,6 +16,12 @@ class AppStrings {
   static const String logsTitle = "Activity Logs";
   static const String tosTitle = "Terms of Service";
   static const String contactDevTitle = "Contact Developer";
+  static const String devContactName = "Nyasha Gabriel";
+  static const String devContactMessage =
+      "Contact the developer when ever the app \nmisbehaves so that data can be preserved \nand a solution can be found";
+  static const String devWhatsAppUrl = "https://wa.me/263785930886";
+  static const String devEmailUrl = "mailto:gabwixgamesite2024@gmail.com";
+  static const String devBuildLabel = "BUILD: KWALEGEND \nALPHA 0.9.2";
 
   //Rando Strings
   static const String savingSubjects = "Saving Subjects:";
@@ -169,12 +175,15 @@ class AppStrings {
   static const String itemNotifs = "Notifications";
 
   static const String itemSync = "Sync Status";
-  static const String subSync = "Last synced: Just now";
+  static const String subSyncUnknown = "Sync status unavailable";
+  static const String itemAutoBilling = "Auto Billing";
+  static const String subAutoBilling = "Run billing once per day on this device";
 
   static const String itemContactDev = "Contact Developer";
   static const String subContactDev = "Report bugs or request features";
 
   static const String itemLogout = "Log Out";
+  static const String unavailable = "Unavailable";
 
     static const String backToLogin = "Back to Login";
   
@@ -195,4 +204,65 @@ class AppStrings {
   static const String msgSuccess = "Password reset successfully. Please login.";
   static const String errMatch = "Passwords do not match";
   static const String errCode = "Invalid code format";
+  static const String cancel = "Cancel";
+  static const String close = "Close";
+  static const String delete = "Delete";
+
+  // Contact Dev
+  static const String devUplinkFailed = "UPLINK FAILED. CHECK SIGNAL.";
+  static const String devSystemOnline = "SYSTEM ONLINE";
+  static const String devWhatsAppUplink = "WHATSAPP_UPLINK";
+  static const String devEmailPayload = "EMAIL_PAYLOAD";
+  static const String devEmailPayloadSub = "Formal // Detailed";
+  static const String devDirectUplink = "Direct uplink established.\nSelect transmission protocol.";
+  static const String devWhatsAppUplinkSub = "Encrypted // Instant";
+  static const String devFingerprintIdPrefix = "ID: ";
+  static const String routeError = "Route Error";
+
+  // Settings
+  static const String subManageProfile = "Manage your personal details";
+  static const String subSchoolConfig = "School configuration";
+  static const String subThemeFixed = "Always active in Legend";
+  static const String subPushAlerts = "Push alerts for updates";
+  static const String subAutoBillingDesc = "Generate invoices automatically";
+  static const String itemAutoBillingErrors = "Auto-billing errors";
+  static const String subAutoBillingErrors = "View the last 50 engine errors";
+  static const String secDangerZone = "Danger Zone";
+  static const String itemDeleteAllStudentData = "Delete all student data";
+  static const String subDeleteAllStudentData = "Removes students, enrollments, invoices, and payments";
+  static const String autoBillingLockedTitle = "Auto-billing locked";
+  static const String autoBillingLockedBody =
+      "Another device holds the billing lock. You can take over and run billing here.";
+  static const String autoBillingTakeOver = "Take Over";
+  static const String autoBillingNoErrors = "No auto-billing errors recorded.";
+  static const String autoBillingErrorsTitle = "Auto-billing errors";
+  static const String autoBillingClearLog = "Clear Log";
+  static const String deleteAllDataTitle = "Delete all student data";
+  static const String deleteAllDataBody =
+      "This will delete all students, enrollments, invoices, payments, allocations, and ledger entries for this school.";
+  static const String deleteAllDataPrompt = "Type DELETE to confirm.";
+  static const String deleteAllDataHint = "DELETE";
+  static const String deleteAllDataSuccess = "All student data deleted.";
+  static const String unknownUser = "Unknown User";
+  static const String locked = "LOCKED";
+  static const String syncDisconnected = "Disconnected";
+  static const String syncSynchronized = "Synchronized";
+  static const String syncStatusPrefix = "Status: ";
+  static const String initialsFallback = "?";
+
+  // Sync status
+  static const String syncError = "Sync error";
+  static const String syncConnecting = "Connecting...";
+  static const String syncSyncing = "Syncing...";
+  static const String syncConnected = "Connected";
+  static const String syncOfflineCached = "Offline (cached)";
+  static const String syncOffline = "Offline";
+  static const String syncLastSyncedPrefix = "Last synced: ";
+  static const String autoBillingLockHeld = "Auto-billing lock held by another device.";
+  static const String autoBillingFailedPrefix = "Auto-billing failed: ";
+  static const String autoBillingErrMissingTuition = "Missing tuition amount for enrollment.";
+  static const String autoBillingErrMissingEnrollmentDate = "Missing enrollment date for monthly custom.";
+  static const String autoBillingErrNoActiveTermMonthlyFixed = "Active term not found for monthly fixed.";
+  static const String autoBillingErrNoActiveTermTermly = "Active term not found for termly billing.";
+  static const String autoBillingErrNoActiveYearYearly = "Active academic year not found for yearly billing.";
 }

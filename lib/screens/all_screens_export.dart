@@ -14,5 +14,5 @@ export 'package:legend/screens/finance/view_invoice_screen.dart';
 export 'package:legend/screens/students/add_student_screen.dart';
 export 'package:legend/screens/students/student_logs_screen.dart';
 export 'package:legend/screens/students/view_student_screen.dart';
-export 'package:legend/screens/contact_dev_screen.dart';
+export 'package:legend/screens/settings/contact_dev_screen.dart';
 export 'package:legend/screens/settings/tos_screen.dart';

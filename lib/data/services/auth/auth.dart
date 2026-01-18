@@ -3,6 +3,7 @@ import 'package:legend/data/models/school_config.dart';
 import 'package:legend/data/repo/auth/auth.dart';
 import 'package:legend/data/repo/auth/school_repo.dart';
 import 'package:legend/data/services/database_serv.dart';
+import 'package:legend/data/services/billing/billing_engine.dart';
 import 'package:legend/data/services/powersync/supa_connector.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -111,6 +112,11 @@ class AuthService extends ChangeNotifier {
       supabaseClient: Supabase.instance.client,
     );
     await DatabaseService().connect(connector);
+    try {
+      await BillingEngine().runDaily(_activeSchool!.id);
+    } catch (e) {
+      debugPrint("Auto-billing run failed: $e");
+    }
   }
 
   // ---------------------------------------------------------------------------

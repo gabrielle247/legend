@@ -1,10 +1,16 @@
-import 'package:legend/app_libs.dart';
+import 'package:legend/app_libs.dart'; // Assumes this exports all your Screens and Models
 import 'package:legend/data/constants/app_routes.dart';
 import 'package:legend/screens/finance/logging_payments.dart';
 
+
+
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
+// ignore: unused_element
+final GlobalKey<NavigatorState> _shellNavigatorKey = GlobalKey<NavigatorState>();
 
 class LegendRouter {
+  //TODO Impement the splash screen
+  //TODO Add
   final AuthService authService;
 
   LegendRouter(this.authService);
@@ -12,40 +18,38 @@ class LegendRouter {
   late final GoRouter router = GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: AppRoutes.dashboard,
-
-    // -------------------------------------------------------------------------
-    // THE MAGIC LINK: Listens to Auth changes
-    // -------------------------------------------------------------------------
+    
+    // 1. AUTH LISTENER
     refreshListenable: authService,
 
-    // -------------------------------------------------------------------------
-    // THE BOUNCER: Security Logic
-    // -------------------------------------------------------------------------
+    // 2. REDIRECT LOGIC
     redirect: (context, state) {
       final isLoggedIn = authService.isAuthenticated;
       final requiresSetup = authService.requiresOnlineSetup;
       final location = state.uri.toString();
 
-      final isAuthRoute =
-          location == AppRoutes.login ||
-          location == AppRoutes.signup ||
-          location == AppRoutes.resetPassword;
+      final isAuthRoute = location == AppRoutes.login || 
+                          location == AppRoutes.signup || 
+                          location == AppRoutes.resetPassword ||
+                          location == AppRoutes.tos;
+      
       final isSetupRoute = location == '/offline-setup';
 
-      // 1. If NOT logged in...
+      // A. Not Logged In? -> Go Login
       if (!isLoggedIn) {
         if (!isAuthRoute) return AppRoutes.login;
+        return null;
       }
 
-      // 2. If LOGGED IN...
+      // B. Logged In?
       if (isLoggedIn) {
-        // A. SECURITY CHECK: Do we need online verification?
+        // i. Security Check
         if (requiresSetup) {
           if (!isSetupRoute) return '/offline-setup';
           return null;
         }
-
-        // B. If verified, prevent going back to Login/Setup
+        
+        // ii. Already Auth? -> Go Dashboard
         if (isAuthRoute || isSetupRoute) return AppRoutes.dashboard;
       }
 
@@ -54,15 +58,13 @@ class LegendRouter {
 
     errorBuilder: (context, state) => const Scaffold(
       backgroundColor: AppColors.backgroundBlack,
-      body: Center(
-        child: Text('Route Error', style: TextStyle(color: Colors.white)),
-      ),
+      body: Center(child: Text(AppStrings.routeError, style: TextStyle(color: Colors.white))),
     ),
 
     routes: [
-      // =========================================================================
-      // 1. AUTH & PUBLIC
-      // =========================================================================
+      // =======================================================================
+      // PUBLIC / AUTH ROUTES (Root Navigator)
+      // =======================================================================
       GoRoute(
         path: AppRoutes.login,
         builder: (context, state) => const LoginScreen(),
@@ -71,14 +73,6 @@ class LegendRouter {
         path: AppRoutes.signup,
         builder: (context, state) => const SignupScreen(),
       ),
-      GoRoute(
-        path: AppRoutes.loggingPayments,
-        parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => LoggingPaymentsScreen(
-          studentId: state.pathParameters['studentId']!,
-        ),
-      ),
-
       GoRoute(
         path: AppRoutes.resetPassword,
         builder: (context, state) => const ForgotPasswordScreen(),
@@ -92,32 +86,30 @@ class LegendRouter {
         builder: (context, state) => const OfflineSetupScreen(),
       ),
 
-      // =========================================================================
-      // 2. SHELL ROUTES (Bottom Navigation)
-      // =========================================================================
+      // =======================================================================
+      // SHELL ROUTE (The Fixed Bottom Nav Wrapper)
+      // =======================================================================
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
           return AppShell(navigationShell: navigationShell);
         },
         branches: [
-          // --- BRANCH 0: DASHBOARD ---
+          
+          // BRANCH 1: DASHBOARD
           StatefulShellBranch(
             routes: [
               GoRoute(
                 path: AppRoutes.dashboard,
                 builder: (context, state) => const DashboardScreen(),
                 routes: [
-                  // UPDATED: Notifications now has a sub-route for details
                   GoRoute(
-                    path: AppRoutes.notifications,
+                    path: AppRoutes.notifications, // "notifications"
                     builder: (context, state) => const NotificationsScreen(),
                     routes: [
                       GoRoute(
-                        path: 'detail', // Path: /dashboard/notifications/detail
-                        parentNavigatorKey:
-                            _rootNavigatorKey, // Covers bottom nav
+                        path: 'detail',
+                        parentNavigatorKey: _rootNavigatorKey, // Fullscreen
                         builder: (context, state) {
-                          // Pass the notification object via 'extra'
                           final noti = state.extra as LegendNotification;
                           return NotificationDetailScreen(notification: noti);
                         },
@@ -125,7 +117,7 @@ class LegendRouter {
                     ],
                   ),
                   GoRoute(
-                    path: AppRoutes.statistics,
+                    path: AppRoutes.statistics, // "statistics"
                     builder: (context, state) => const StatisticsScreen(),
                   ),
                 ],
@@ -133,7 +125,7 @@ class LegendRouter {
             ],
           ),
 
-          // --- BRANCH 1: STUDENTS ---
+          // BRANCH 2: STUDENTS
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -142,14 +134,15 @@ class LegendRouter {
                 routes: [
                   GoRoute(
                     path: AppRoutes.addStudent,
-                    parentNavigatorKey: _rootNavigatorKey,
+                    parentNavigatorKey: _rootNavigatorKey, // Hide Nav Bar
                     builder: (context, state) => const AddStudentScreen(),
                   ),
                   GoRoute(
-                    path: AppRoutes.viewStudent,
+                    // Ensure AppRoutes.viewStudent contains ":studentId" 
+                    // e.g. "view/:studentId"
+                    path: AppRoutes.viewStudent, 
                     parentNavigatorKey: _rootNavigatorKey,
                     builder: (context, state) => ViewStudentScreen(
-                      // FIX: Add '!'
                       studentId: state.pathParameters['studentId']!,
                     ),
                   ),
@@ -165,7 +158,7 @@ class LegendRouter {
             ],
           ),
 
-          // --- BRANCH 2: FINANCE ---
+          // BRANCH 3: FINANCE
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -191,12 +184,20 @@ class LegendRouter {
                       studentId: state.uri.queryParameters['studentId'],
                     ),
                   ),
+                  // Wired Logging Payments here so it relates to Finance flow
+                  GoRoute(
+                    path: AppRoutes.loggingPayments,
+                    parentNavigatorKey: _rootNavigatorKey,
+                    builder: (context, state) => LoggingPaymentsScreen(
+                      studentId: state.pathParameters['studentId']!,
+                    ),
+                  ),
                 ],
               ),
             ],
           ),
 
-          // --- BRANCH 3: SETTINGS ---
+          // BRANCH 4: SETTINGS
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -219,7 +220,7 @@ class LegendRouter {
 }
 
 // =============================================================================
-// APP SHELL
+// APP SHELL WIDGET
 // =============================================================================
 class AppShell extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
@@ -237,45 +238,48 @@ class AppShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.backgroundBlack,
-      body: navigationShell,
+      body: navigationShell, // The current branch content
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           color: AppColors.surfaceDarkGrey,
-          border: Border(
-            top: BorderSide(color: AppColors.surfaceLightGrey, width: 0.5),
-          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black26, 
+              blurRadius: 10, 
+              offset: Offset(0, -5),
+            )
+          ],
         ),
         child: SafeArea(
-          top: false,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: GNav(
               backgroundColor: AppColors.surfaceDarkGrey,
-              tabBackgroundColor: AppColors.primaryBlueLight.withAlpha(50),
               color: AppColors.textGrey,
-              activeColor: AppColors.textWhite,
+              activeColor: Colors.white,
+              tabBackgroundColor: AppColors.primaryBlue.withAlpha(40),
               gap: 8,
-              tabBorderRadius: 12,
-              iconSize: 22,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.all(12),
+              iconSize: 24,
+              textSize: 14,
               selectedIndex: navigationShell.currentIndex,
               onTabChange: _onTabSelected,
               tabs: const [
                 GButton(
                   icon: Icons.dashboard_outlined,
-                  text: AppStrings.dashboardTitle,
+                  text: 'Dashboard',
                 ),
                 GButton(
                   icon: Icons.people_outline,
-                  text: AppStrings.studentsTitle,
+                  text: 'Students',
                 ),
                 GButton(
                   icon: Icons.account_balance_wallet_outlined,
-                  text: AppStrings.financeTitle,
+                  text: 'Finance',
                 ),
                 GButton(
-                  icon: Icons.person_outline,
-                  text: AppStrings.settingsTitle,
+                  icon: Icons.settings_outlined,
+                  text: 'Settings',
                 ),
               ],
             ),
