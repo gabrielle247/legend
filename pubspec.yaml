@@ -51,6 +51,8 @@ dev_dependencies:
   change_app_package_name: ^1.5.0
   flutter_launcher_icons: ^0.13.1
   flutter_lints: ^6.0.0
+  path_provider_platform_interface: ^2.0.0
+  mocktail: ^1.0.0
   flutter_test:
     sdk: flutter
 
@@ -66,4 +68,8 @@ flutter_launcher_name:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/trace.svg"
+  image_path: "assets/images/icon.png"
+  adaptive_icon_background: "#4285F4" # Change this hex to manipulate color
+  adaptive_icon_foreground: "assets/images/icon.png"
+  # For Android 13+ system-themed icons
+  monochrome_white: "assets/images/icon.png" 
