@@ -664,10 +664,48 @@ class _FinanceTab extends StatelessWidget {
 
                   const SizedBox(height: 32),
                   Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () => context.go('${AppRoutes.finance}/${AppRoutes.loggingPayments}'.replaceAll(':studentId', student.id)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryBlue,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          icon: const Icon(Icons.receipt_long, size: 18),
+                          label: const Text("Log Payment", style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => context.go('${AppRoutes.students}/${AppRoutes.studentLogs}'.replaceAll(':studentId', student.id)),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: BorderSide(color: AppColors.surfaceLightGrey.withAlpha(40)),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          icon: const Icon(Icons.history, size: 18),
+                          label: const Text("Student Logs"),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 32),
+                  Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       _SectionTitle(title: "RECENT INVOICES"),
-                      const Text("See All", style: TextStyle(color: AppColors.primaryBlue, fontSize: 12, fontWeight: FontWeight.bold)),
+                      GestureDetector(
+                        onTap: () => context.go(
+                          '${AppRoutes.students}/${AppRoutes.studentInvoices}'.replaceAll(':studentId', student.id),
+                        ),
+                        child: const Text("See All", style: TextStyle(color: AppColors.primaryBlue, fontSize: 12, fontWeight: FontWeight.bold)),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -814,49 +852,55 @@ class _InvoiceTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusColor = inv.status == InvoiceStatus.paid ? AppColors.successGreen : Colors.orange;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E2029),
-        borderRadius: BorderRadius.circular(16),
+    return InkWell(
+      onTap: () => context.push(
+        '${AppRoutes.finance}/${AppRoutes.viewInvoice}'.replaceAll(':invoiceId', inv.id),
       ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.orange.withAlpha(20),
-              shape: BoxShape.circle,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E2029),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.withAlpha(20),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.description, color: Colors.orange, size: 20),
             ),
-            child: const Icon(Icons.description, color: Colors.orange, size: 20),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(inv.title ?? "Invoice", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                  Text("Due ${inv.dueDate.toIso8601String().split('T')[0]}", style: const TextStyle(color: AppColors.textGrey, fontSize: 12)),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(inv.title ?? "Invoice", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
-                Text("Due ${inv.dueDate.toIso8601String().split('T')[0]}", style: const TextStyle(color: AppColors.textGrey, fontSize: 12)),
+                Text("\$${inv.totalAmount.toStringAsFixed(2)}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: statusColor.withAlpha(30),
+                    borderRadius: BorderRadius.circular(4)
+                  ),
+                  child: Text(inv.status.name.toUpperCase(), style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold)),
+                )
               ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text("\$${inv.totalAmount.toStringAsFixed(2)}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
-              const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: statusColor.withAlpha(30),
-                  borderRadius: BorderRadius.circular(4)
-                ),
-                child: Text(inv.status.name.toUpperCase(), style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold)),
-              )
-            ],
-          )
-        ],
+            )
+          ],
+        ),
       ),
     );
   }

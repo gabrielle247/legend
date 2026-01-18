@@ -120,7 +120,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           amount: stats.collectedToday,
                           icon: Icons.arrow_downward,
                           color: AppColors.successGreen,
-                          onTap: () => context.go(AppRoutes.finance),
+                          onTap: () => context.go('${AppRoutes.dashboard}/${AppRoutes.received}'),
                         ),
                       ),
                       const SizedBox(width: 16),
@@ -131,7 +131,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           amount: stats.totalOwed,
                           icon: Icons.more_horiz,
                           color: Colors.orangeAccent,
-                          onTap: () => context.go(AppRoutes.students),
+                          onTap: () => context.go('${AppRoutes.dashboard}/${AppRoutes.outstanding}'),
                         ),
                       ),
                     ],
@@ -236,7 +236,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildQuickActions(BuildContext context) {
     return Row(
       children: [
-        Expanded(child: _buildActionButton(context, icon: Icons.payments_outlined, label: "Log\nPayment", onTap: () => context.go(AppRoutes.finance))),
+        Expanded(
+          child: _buildActionButton(
+            context,
+            icon: Icons.payments_outlined,
+            label: "Log\nPayment",
+            onTap: () => context.go('${AppRoutes.finance}/${AppRoutes.recordPayment}'),
+          ),
+        ),
         const SizedBox(width: 12),
         Expanded(child: _buildActionButton(context, icon: Icons.person_add_alt_1, label: "Add\nStudent", onTap: () => context.go('${AppRoutes.students}/${AppRoutes.addStudent}'))),
         const SizedBox(width: 12),
@@ -290,7 +297,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text('Recent Activity', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-            TextButton(onPressed: () => context.go(AppRoutes.finance), child: const Text('View All', style: TextStyle(color: AppColors.primaryBlue, fontSize: 12, fontWeight: FontWeight.bold))),
+            TextButton(
+              onPressed: () => context.go('${AppRoutes.dashboard}/${AppRoutes.activity}'),
+              child: const Text('View All', style: TextStyle(color: AppColors.primaryBlue, fontSize: 12, fontWeight: FontWeight.bold)),
+            ),
           ],
         ),
         const SizedBox(height: 8),

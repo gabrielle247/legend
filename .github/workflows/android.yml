@@ -1,0 +1,67 @@
+name: Build Android APK/AAB
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Install SVG tools
+        run: sudo apt-get update && sudo apt-get install -y librsvg2-bin
+
+      - name: Generate launcher icon PNG from SVG
+        run: rsvg-convert assets/images/trace.svg -w 1024 -h 1024 -o assets/images/trace.png
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Generate launcher icons
+        run: flutter pub run flutter_launcher_icons
+
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > android/upload-keystore.jks
+
+      - name: Create key.properties
+        run: |
+          cat <<EOF > android/key.properties
+          storePassword=${{ secrets.ANDROID_STORE_PASSWORD }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          storeFile=upload-keystore.jks
+          EOF
+
+      - name: Build APK
+        run: flutter build apk --release --no-tree-shake-icons
+
+      - name: Build AAB
+        run: flutter build appbundle --release --no-tree-shake-icons
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: legend-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Upload AAB Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: legend-aab
+          path: build/app/outputs/bundle/release/app-release.aab

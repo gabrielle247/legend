@@ -21,6 +21,8 @@ class FinanceViewModel extends ChangeNotifier {
   List<String> monthLabels = [];
 
   List<Map<String, dynamic>> recentActivity = [];
+  List<Map<String, dynamic>> recentPayments = [];
+  List<Map<String, dynamic>> outstandingStudents = [];
 
   bool isCreatingInvoice = false;
   String? invoiceCreationError;
@@ -48,6 +50,8 @@ class FinanceViewModel extends ChangeNotifier {
 
       await _loadOverviewStats(school.id);
       await _loadRecentActivity(school.id);
+      await _loadRecentPayments(school.id);
+      await _loadOutstandingStudents(school.id);
     } catch (e) {
       error = e.toString();
       debugPrint("FinanceViewModel.init error: $e");
@@ -73,6 +77,14 @@ class FinanceViewModel extends ChangeNotifier {
 
   Future<void> _loadRecentActivity(String schoolId) async {
     recentActivity = await _financeRepo.getRecentActivity(schoolId);
+  }
+
+  Future<void> _loadRecentPayments(String schoolId) async {
+    recentPayments = await _financeRepo.getRecentPayments(schoolId, limit: 8);
+  }
+
+  Future<void> _loadOutstandingStudents(String schoolId) async {
+    outstandingStudents = await _financeRepo.getOutstandingStudents(schoolId, limit: 8);
   }
 
   Future<void> createInvoice({
@@ -137,6 +149,8 @@ class FinanceViewModel extends ChangeNotifier {
 
       await _loadOverviewStats(school.id);
       await _loadRecentActivity(school.id);
+      await _loadRecentPayments(school.id);
+      await _loadOutstandingStudents(school.id);
     } catch (e) {
       invoiceCreationError = e.toString();
       debugPrint("FinanceViewModel.createInvoice error: $e");
@@ -193,6 +207,8 @@ class FinanceViewModel extends ChangeNotifier {
 
       await _loadOverviewStats(school.id);
       await _loadRecentActivity(school.id);
+      await _loadRecentPayments(school.id);
+      await _loadOutstandingStudents(school.id);
     } catch (e) {
       paymentRecordingError = e.toString();
       debugPrint("FinanceViewModel.recordPayment error: $e");

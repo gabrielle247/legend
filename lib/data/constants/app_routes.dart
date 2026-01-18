@@ -5,6 +5,7 @@ class AppRoutes {
   static const resetPassword = '/reset-password';
   static const tos = '/tos';
   static const offlineSetup = '/offline-setup';
+  static const splash = '/';
 
   // Shell roots
   static const dashboard = '/dashboard';
@@ -16,11 +17,15 @@ class AppRoutes {
   static const notifications = 'notifications';
   static const notificationDetail = 'notifications/detail';
   static const statistics = 'statistics';
+  static const outstanding = 'outstanding';
+  static const received = 'received';
+  static const activity = 'activity';
 
   // Student children
   static const addStudent = 'add';
   static const viewStudent = 'view/:studentId';
   static const studentLogs = 'logs/:studentId';
+  static const studentInvoices = 'invoices/:studentId';
 
   // Finance children
   static const createInvoice = 'invoice/new';

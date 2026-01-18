@@ -6,6 +6,7 @@ import 'package:legend/data/models/all_models.dart';
 import 'package:legend/data/repo/dashboard_repo.dart';
 import 'package:provider/provider.dart'; 
 import 'package:legend/data/constants/app_constants.dart';
+import 'package:legend/screens/finance/printing_receipt_screen.dart';
 
 class NotificationDetailScreen extends StatelessWidget {
   final LegendNotification notification;
@@ -299,7 +300,30 @@ class NotificationDetailScreen extends StatelessWidget {
       btnIcon = Icons.open_in_new;
       isPrimary = true;
       onTap = () {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("External links disabled in offline mode.")));
+        final now = DateTime.now();
+        final data = {
+          'id': notification.id,
+          'date': now.toIso8601String(),
+          'student': notification.title,
+          'items': [
+            {
+              'desc': notification.message,
+              'amount': 0.0,
+            }
+          ],
+          'total': 0.0,
+          'cashier': 'System',
+        };
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PrintReceiptScreen(
+              data: data,
+              type: ReceiptType.invoice,
+            ),
+          ),
+        );
       };
     }
 

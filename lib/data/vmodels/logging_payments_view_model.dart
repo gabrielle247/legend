@@ -39,8 +39,7 @@ class LoggingPaymentsViewModel extends ChangeNotifier {
 
       student = await _studentRepo.getStudentById(studentId);
 
-      // Try to load unpaid invoices using whichever method exists in YOUR repo.
-      unpaidInvoices = await _loadUnpaidInvoicesSmart(studentId);
+      unpaidInvoices = await _financeRepo.getOpenInvoicesForStudent(studentId);
 
       // Ensure sorted: oldest/most urgent first
       unpaidInvoices.sort((a, b) => a.dueDate.compareTo(b.dueDate));
@@ -135,52 +134,4 @@ class LoggingPaymentsViewModel extends ChangeNotifier {
     }
   }
 
-  // --- Repo method probing (compiles now; runtime tries common method names) ---
-  Future<List<Invoice>> _loadUnpaidInvoicesSmart(String studentId) async {
-    final repo = _financeRepo as dynamic;
-
-    // Try several likely method names without breaking compilation.
-    final candidates = <String>[
-      "getUnpaidInvoicesForStudent",
-      "getOpenInvoicesForStudent",
-      "getStudentUnpaidInvoices",
-      "getInvoicesForStudent",
-      "getStudentInvoices",
-    ];
-
-    for (final name in candidates) {
-      try {
-        final out = await _invoke(repo, name, studentId);
-        if (out is List) return out.cast<Invoice>();
-      } catch (_) {
-        // keep trying next candidate
-      }
-    }
-
-    // If nothing exists, return empty but surface a precise developer-facing error.
-    error =
-        "FinanceRepository missing unpaid-invoices loader.\nAdd one of: ${candidates.join(', ')}(studentId).";
-    return <Invoice>[];
-  }
-
-  Future<dynamic> _invoke(
-    dynamic repo,
-    String methodName,
-    String studentId,
-  ) async {
-    switch (methodName) {
-      case "getUnpaidInvoicesForStudent":
-        return await repo.getUnpaidInvoicesForStudent(studentId);
-      case "getOpenInvoicesForStudent":
-        return await repo.getOpenInvoicesForStudent(studentId);
-      case "getStudentUnpaidInvoices":
-        return await repo.getStudentUnpaidInvoices(studentId);
-      case "getInvoicesForStudent":
-        return await repo.getInvoicesForStudent(studentId);
-      case "getStudentInvoices":
-        return await repo.getStudentInvoices(studentId);
-      default:
-        return null;
-    }
-  }
 }

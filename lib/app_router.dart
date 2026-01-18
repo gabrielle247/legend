@@ -1,6 +1,5 @@
 import 'package:legend/app_libs.dart'; // Assumes this exports all your Screens and Models
-import 'package:legend/data/constants/app_routes.dart';
-import 'package:legend/screens/finance/logging_payments.dart';
+
 
 
 
@@ -9,15 +8,13 @@ final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<NavigatorState> _shellNavigatorKey = GlobalKey<NavigatorState>();
 
 class LegendRouter {
-  //TODO Impement the splash screen
-  //TODO Add
   final AuthService authService;
 
   LegendRouter(this.authService);
 
   late final GoRouter router = GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: AppRoutes.dashboard,
+    initialLocation: AppRoutes.splash,
     
     // 1. AUTH LISTENER
     refreshListenable: authService,
@@ -34,10 +31,11 @@ class LegendRouter {
                           location == AppRoutes.tos;
       
       final isSetupRoute = location == '/offline-setup';
+      final isSplashRoute = location == AppRoutes.splash;
 
       // A. Not Logged In? -> Go Login
       if (!isLoggedIn) {
-        if (!isAuthRoute) return AppRoutes.login;
+        if (!isAuthRoute && !isSplashRoute) return AppRoutes.login;
         return null;
       }
 
@@ -45,7 +43,7 @@ class LegendRouter {
       if (isLoggedIn) {
         // i. Security Check
         if (requiresSetup) {
-          if (!isSetupRoute) return '/offline-setup';
+          if (!isSetupRoute && !isSplashRoute) return '/offline-setup';
           return null;
         }
         
@@ -65,6 +63,10 @@ class LegendRouter {
       // =======================================================================
       // PUBLIC / AUTH ROUTES (Root Navigator)
       // =======================================================================
+      GoRoute(
+        path: AppRoutes.splash,
+        builder: (context, state) => const SplashScreen(),
+      ),
       GoRoute(
         path: AppRoutes.login,
         builder: (context, state) => const LoginScreen(),
@@ -120,6 +122,18 @@ class LegendRouter {
                     path: AppRoutes.statistics, // "statistics"
                     builder: (context, state) => const StatisticsScreen(),
                   ),
+                  GoRoute(
+                    path: AppRoutes.outstanding,
+                    builder: (context, state) => const OutstandingStudentsScreen(),
+                  ),
+                  GoRoute(
+                    path: AppRoutes.received,
+                    builder: (context, state) => const ReceivedPaymentsScreen(),
+                  ),
+                  GoRoute(
+                    path: AppRoutes.activity,
+                    builder: (context, state) => const DashboardActivityScreen(),
+                  ),
                 ],
               ),
             ],
@@ -150,6 +164,13 @@ class LegendRouter {
                     path: AppRoutes.studentLogs,
                     parentNavigatorKey: _rootNavigatorKey,
                     builder: (context, state) => StudentLogsScreen(
+                      studentId: state.pathParameters['studentId']!,
+                    ),
+                  ),
+                  GoRoute(
+                    path: AppRoutes.studentInvoices,
+                    parentNavigatorKey: _rootNavigatorKey,
+                    builder: (context, state) => StudentInvoicesScreen(
                       studentId: state.pathParameters['studentId']!,
                     ),
                   ),

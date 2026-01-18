@@ -485,6 +485,36 @@ class StudentRepository {
   // 4) LOGS (REAL IMPLEMENTATION: derived from ledger)
   // ---------------------------------------------------------------------------
 
+  Future<Map<String, double>> getStudentLedgerSummary(String studentId) async {
+    try {
+      final row = await _db.getOptional(
+        """
+        SELECT
+          COALESCE(SUM(CASE WHEN UPPER(type) = 'DEBIT' THEN amount ELSE 0 END), 0) as debits,
+          COALESCE(SUM(CASE WHEN UPPER(type) = 'CREDIT' THEN amount ELSE 0 END), 0) as credits
+        FROM ledger
+        WHERE student_id = ?
+        """,
+        [studentId],
+      );
+
+      final debits = (row?['debits'] as num?)?.toDouble() ?? 0.0;
+      final credits = (row?['credits'] as num?)?.toDouble() ?? 0.0;
+      return {
+        'debits': debits,
+        'credits': credits,
+        'balance': (debits - credits),
+      };
+    } catch (e) {
+      debugPrint("Error fetching ledger summary: $e");
+      return {
+        'debits': 0.0,
+        'credits': 0.0,
+        'balance': 0.0,
+      };
+    }
+  }
+
   Future<List<LogEntry>> getStudentLogs(String studentId) async {
     try {
       final rows = await _db.getAll(

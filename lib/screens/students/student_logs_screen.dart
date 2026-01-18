@@ -78,6 +78,28 @@ class _StudentLogsContentState extends State<_StudentLogsContent> {
           ? const Center(child: CircularProgressIndicator(color: AppColors.primaryBlue))
           : Column(
               children: [
+                // 0. SUMMARY
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceDarkGrey,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(30)),
+                    ),
+                    child: Row(
+                      children: [
+                        _summaryItem("To Be Paid", vm.totalDebits, AppColors.errorRed),
+                        const SizedBox(width: 12),
+                        _summaryItem("Paid", vm.totalCredits, AppColors.successGreen),
+                        const SizedBox(width: 12),
+                        _summaryItem("Balance", vm.balance, vm.balance > 0 ? AppColors.errorRed : AppColors.successGreen),
+                      ],
+                    ),
+                  ),
+                ),
+
                 // 1. FILTER CHIPS
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
@@ -278,6 +300,22 @@ class _StudentLogsContentState extends State<_StudentLogsContent> {
           Icon(Icons.history_toggle_off, size: 48, color: AppColors.textGrey),
           SizedBox(height: 16),
           Text(AppStrings.errLogsNotFound, style: TextStyle(color: AppColors.textGrey)),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryItem(String label, double value, Color color) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(color: AppColors.textGrey, fontSize: 11)),
+          const SizedBox(height: 6),
+          Text(
+            "\$${value.toStringAsFixed(2)}",
+            style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 14),
+          ),
         ],
       ),
     );

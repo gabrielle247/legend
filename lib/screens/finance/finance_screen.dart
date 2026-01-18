@@ -13,10 +13,15 @@ class FinanceScreen extends StatefulWidget {
 }
 
 class _FinanceScreenState extends State<FinanceScreen> {
+  // UI State for "Placebo" Filters
+  int _selectedTimeRangeIndex = 2; // Default to 'Month'
+  int _selectedTxTypeIndex = 0; // Default to 'All'
+  final List<String> _timeRanges = ["Today", "Week", "Month", "Year"];
+  final List<String> _txFilters = ["All", "Income", "Pending", "Expenses"];
+
   @override
   void initState() {
     super.initState();
-    // Initialize data fetch after first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<FinanceViewModel>().init();
     });
@@ -27,13 +32,14 @@ class _FinanceScreenState extends State<FinanceScreen> {
   // ---------------------------------------------------------------------------
   void _navToCreateInvoice() => context.push('${AppRoutes.finance}/${AppRoutes.createInvoice}');
   void _navToRecordPayment() => context.push('${AppRoutes.finance}/${AppRoutes.recordPayment}');
+  void _navToDashboardOutstanding() => context.go('${AppRoutes.dashboard}/${AppRoutes.outstanding}');
+  void _navToDashboardReceived() => context.go('${AppRoutes.dashboard}/${AppRoutes.received}');
+  void _navToDashboardActivity() => context.go('${AppRoutes.dashboard}/${AppRoutes.activity}');
   
   void _navToStudentIfPossible(Map<String, dynamic> item) {
     final targetId = item['targetId']?.toString();
     if (targetId != null && targetId.isNotEmpty) {
       context.push('${AppRoutes.students}/view/$targetId');
-    } else {
-      // TODO: Handle navigation for non-student transactions (e.g. operational expenses)
     }
   }
 
@@ -44,122 +50,80 @@ class _FinanceScreenState extends State<FinanceScreen> {
   Widget build(BuildContext context) {
     return Consumer<FinanceViewModel>(
       builder: (context, vm, _) {
-        // 1. LOADING STATE
         if (vm.isLoading) {
           return const Scaffold(
             backgroundColor: AppColors.backgroundBlack,
-            body: Center(
-              child: CircularProgressIndicator(color: AppColors.primaryBlue),
-            ),
+            body: Center(child: CircularProgressIndicator(color: AppColors.primaryBlue)),
           );
         }
 
-        // 2. ERROR STATE
         if (vm.error != null) {
           return _buildErrorState(vm);
         }
 
-        // 3. MAIN DASHBOARD CONTENT
         return Scaffold(
           backgroundColor: AppColors.backgroundBlack,
-          
-          // Hidden AppBar to handle status bar area but defer control to Custom Header
+          // Hide default AppBar
           appBar: AppBar(
             backgroundColor: AppColors.backgroundBlack,
             elevation: 0,
             toolbarHeight: 0,
           ),
-
           body: RefreshIndicator(
             onRefresh: vm.refresh,
             color: AppColors.primaryBlue,
             backgroundColor: AppColors.surfaceDarkGrey,
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
-              // Padding matches Dashboard layout (Top 20, Bottom 100 for Nav Bar clearance)
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 100), 
+              padding: const EdgeInsets.only(bottom: 100), // Nav clearance
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // HEADER
-                  _buildHeader(vm),
-                  const SizedBox(height: 24),
+                  // 1. TOP CONTROL BAR (Header + Time Filters)
+                  _buildTopControlBar(vm),
+                  
+                  const SizedBox(height: 20),
 
-                  // HERO METRICS
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildHeroCard(
-                          title: "TOTAL REVENUE",
-                          value: vm.totalRevenue,
-                          subtitle: "${vm.percentGrowth >= 0 ? '+' : ''}${vm.percentGrowth.toStringAsFixed(1)}% Growth",
-                          icon: Icons.arrow_downward,
-                          color: AppColors.successGreen,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _buildHeroCard(
-                          title: "PENDING",
-                          value: vm.pendingAmount,
-                          subtitle: "${vm.unpaidInvoiceCount} Invoices",
-                          icon: Icons.priority_high,
-                          color: Colors.orangeAccent,
-                        ),
-                      ),
-                    ],
-                  ),
+                  // 2. MASTER CARD (The "Central" Dashboard feel)
+                  _buildMasterFinancialCard(vm),
 
                   const SizedBox(height: 24),
 
-                  // QUICK ACTIONS
-                  const Text(
-                    "Quick Actions", 
-                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildActionButton(
-                          icon: Icons.add_circle_outline,
-                          label: "Generate\nInvoice",
-                          onTap: _navToCreateInvoice,
-                          color: AppColors.primaryBlue,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _buildActionButton(
-                          icon: Icons.payments_outlined,
-                          label: "Record\nPayment",
-                          onTap: _navToRecordPayment,
-                          color: AppColors.successGreen,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // COLLECTIONS TREND CHART
-                  _buildTrendChart(vm.monthlyCollections, vm.monthLabels),
+                  // 3. ACTION COMMAND CENTER (Replacing demotivating buttons)
+                  _buildActionCommandCenter(),
 
                   const SizedBox(height: 32),
 
-                  // RECENT ACTIVITY FEED
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        "Recent Activity", 
-                        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)
-                      ),
-                      // TODO: Add "View All" button here when history screen is ready
-                    ],
+                  // 4. ANALYTICS SECTION
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "Cash Flow Trend",
+                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 16),
+                        _buildTrendChart(vm.monthlyCollections, vm.monthLabels),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 12),
-                  _buildActivityList(vm.recentActivity),
+
+                  const SizedBox(height: 32),
+
+                  // 5. OUTSTANDING BALANCES
+                  _buildOutstandingSection(vm.outstandingStudents),
+
+                  const SizedBox(height: 32),
+
+                  // 6. LATEST PAYMENTS
+                  _buildRecentPaymentsSection(vm.recentPayments),
+
+                  const SizedBox(height: 32),
+
+                  // 7. SMART ACTIVITY FEED
+                  _buildSmartActivitySection(vm.recentActivity),
                 ],
               ),
             ),
@@ -170,346 +134,509 @@ class _FinanceScreenState extends State<FinanceScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // SUB-WIDGETS
+  // 1. TOP CONTROL BAR
   // ---------------------------------------------------------------------------
+  Widget _buildTopControlBar(FinanceViewModel vm) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Overview",
+                    style: TextStyle(
+                      color: AppColors.textGrey.withAlpha(150),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    "Financial Health",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              IconButton(
+                onPressed: vm.refresh,
+                icon: const Icon(Icons.refresh, color: AppColors.primaryBlue),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          // Time Range Filter (Placebo UI)
+          SizedBox(
+            height: 36,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _timeRanges.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final isSelected = _selectedTimeRangeIndex == index;
+                return GestureDetector(
+                  onTap: () => setState(() => _selectedTimeRangeIndex = index),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected ? AppColors.primaryBlue : AppColors.surfaceDarkGrey,
+                      borderRadius: BorderRadius.circular(20),
+                      border: isSelected 
+                        ? null 
+                        : Border.all(color: AppColors.surfaceLightGrey.withAlpha(20)),
+                    ),
+                    child: Text(
+                      _timeRanges[index],
+                      style: TextStyle(
+                        color: isSelected ? Colors.white : AppColors.textGrey,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-  Widget _buildHeader(FinanceViewModel vm) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "Finance",
-              style: TextStyle(color: AppColors.textGrey, fontSize: 14),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              "Overview",
-              style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
-            ),
+  // ---------------------------------------------------------------------------
+  // 2. MASTER FINANCIAL CARD
+  // ---------------------------------------------------------------------------
+  Widget _buildMasterFinancialCard(FinanceViewModel vm) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      width: double.infinity,
+      decoration: BoxDecoration(
+        // Subtle gradient effect using the theme blue
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.surfaceDarkGrey,
+            AppColors.backgroundBlack,
           ],
         ),
-        Container(
-          decoration: BoxDecoration(
-            color: AppColors.surfaceDarkGrey,
-            shape: BoxShape.circle,
-            border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(20)),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(30)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(100),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
           ),
-          child: IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: vm.refresh,
-            tooltip: 'Refresh Data',
+        ],
+      ),
+      child: Stack(
+        children: [
+          // Background Decor (Abstract Circle)
+          Positioned(
+            right: -20,
+            top: -20,
+            child: Container(
+              width: 150,
+              height: 150,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.primaryBlue.withAlpha(15),
+              ),
+            ),
           ),
-        )
+          
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.successGreen.withAlpha(30),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.arrow_upward, color: AppColors.successGreen, size: 12),
+                          const SizedBox(width: 4),
+                          Text(
+                            "${vm.percentGrowth}%",
+                            style: const TextStyle(
+                              color: AppColors.successGreen,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.more_horiz, color: AppColors.textGrey),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  "Total Collections",
+                  style: TextStyle(color: AppColors.textGrey, fontSize: 13, fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  "\$${vm.totalRevenue.toStringAsFixed(2)}",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 36,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: -1.0,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // Footer Stats (Pending)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withAlpha(50),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.orangeAccent.withAlpha(20),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.priority_high, color: Colors.orangeAccent, size: 16),
+                      ),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "\$${vm.pendingAmount.toStringAsFixed(0)} Pending",
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                          Text(
+                            "${vm.unpaidInvoiceCount} unpaid invoices",
+                            style: const TextStyle(color: AppColors.textGrey, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // 3. ACTION COMMAND CENTER
+  // ---------------------------------------------------------------------------
+  Widget _buildActionCommandCenter() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        children: [
+          // Primary Action (Solid Blue)
+          Expanded(
+            flex: 3,
+            child: ElevatedButton(
+              onPressed: _navToCreateInvoice,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryBlue,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                elevation: 0,
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.add, size: 20),
+                  SizedBox(width: 8),
+                  Text("New Invoice", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Secondary Action (Dark Surface)
+          Expanded(
+            flex: 2,
+            child: ElevatedButton(
+              onPressed: _navToRecordPayment,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.surfaceDarkGrey,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: AppColors.surfaceLightGrey.withAlpha(20)),
+                ),
+                elevation: 0,
+              ),
+              child: const Text("Record Pay", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // 4. CHART (Cleaner Layout)
+  // ---------------------------------------------------------------------------
+  Widget _buildTrendChart(List<double> values, List<String> labels) {
+    if (values.isEmpty) return const SizedBox.shrink();
+    
+    final maxVal = values.fold(0.0, (p, c) => p > c ? p : c);
+    final safeMax = maxVal > 0 ? maxVal : 1.0;
+
+    return Container(
+      height: 180,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceDarkGrey,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: List.generate(values.length, (index) {
+          final val = values[index];
+          final pct = (val / safeMax).clamp(0.0, 1.0);
+          final label = labels.length > index ? labels[index] : "";
+          final isPeak = pct > 0.9;
+
+          return Column(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              if (isPeak)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Icon(Icons.star, color: AppColors.primaryBlue.withAlpha(150), size: 10),
+                ),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 600),
+                curve: Curves.easeOutBack,
+                width: 32,
+                height: 100 * pct + 10,
+                decoration: BoxDecoration(
+                  color: isPeak ? AppColors.primaryBlue : AppColors.surfaceLightGrey.withAlpha(20),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isPeak ? Colors.white : AppColors.textGrey,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          );
+        }),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // 5. SMART ACTIVITY SECTION
+  // ---------------------------------------------------------------------------
+  Widget _buildSmartActivitySection(List<Map<String, dynamic>> rawActivities) {
+    return Column(
+      children: [
+        // Section Header with Filter Tabs
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    "Transactions",
+                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  TextButton(
+                    onPressed: _navToDashboardActivity,
+                    child: const Text("View All", style: TextStyle(color: AppColors.primaryBlue, fontSize: 12)),
+                  ),
+                ],
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Container(
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceDarkGrey,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: List.generate(_txFilters.length, (index) {
+                      final isSelected = _selectedTxTypeIndex == index;
+                      if (index > 2) return const SizedBox.shrink(); // Limit to first 3 for space
+                      return GestureDetector(
+                        onTap: () => setState(() => _selectedTxTypeIndex = index),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: isSelected ? AppColors.surfaceLightGrey.withAlpha(50) : null,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            _txFilters[index],
+                            style: TextStyle(
+                              color: isSelected ? Colors.white : AppColors.textGrey,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        
+        // The List
+        if (rawActivities.isEmpty) 
+          const Padding(
+            padding: EdgeInsets.all(20),
+            child: Text("No data available", style: TextStyle(color: AppColors.textGrey)),
+          )
+        else
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: rawActivities.length,
+            itemBuilder: (context, index) {
+              final item = _sanitizeActivity(rawActivities[index]);
+              final isIncome = item['kind'] == _ActivityKind.income;
+              
+              // Placebo Filtering Logic (Visual only)
+              if (_selectedTxTypeIndex == 1 && !isIncome) return const SizedBox.shrink(); // Show Income Only
+              if (_selectedTxTypeIndex == 2 && isIncome) return const SizedBox.shrink(); // Show Expense/Pending Only
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                child: InkWell(
+                  onTap: () => _navToStudentIfPossible(item),
+                  borderRadius: BorderRadius.circular(16),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceDarkGrey,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(20)),
+                        ),
+                        child: Icon(
+                          isIncome ? Icons.arrow_downward : Icons.arrow_upward,
+                          color: isIncome ? AppColors.successGreen : Colors.white,
+                          size: 18,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item['name'],
+                              style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              item['desc'],
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(color: AppColors.textGrey, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            "${isIncome ? '+' : '-'}\$${item['amount'].toStringAsFixed(0)}",
+                            style: TextStyle(
+                              color: isIncome ? AppColors.successGreen : Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            item['time'],
+                            style: TextStyle(color: AppColors.textGrey.withAlpha(100), fontSize: 10),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
       ],
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // HELPERS (Error State & Logic)
+  // ---------------------------------------------------------------------------
 
   Widget _buildErrorState(FinanceViewModel vm) {
     return Scaffold(
       backgroundColor: AppColors.backgroundBlack,
       body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, color: AppColors.errorRed, size: 48),
-              const SizedBox(height: 16),
-              Text(
-                vm.error ?? "Unknown Error",
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.textGrey),
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: vm.refresh,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryBlue,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                child: const Text("Retry Connection"),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeroCard({
-    required String title,
-    required double value,
-    required String subtitle,
-    required IconData icon,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceDarkGrey,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(20)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: color.withAlpha(20),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: color, size: 18),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                title, 
-                style: const TextStyle(
-                  color: AppColors.textGrey, 
-                  fontSize: 10, 
-                  fontWeight: FontWeight.bold, 
-                  letterSpacing: 0.5
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            "\$${value.toStringAsFixed(0)}",
-            style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            subtitle,
-            style: TextStyle(color: color.withAlpha(200), fontSize: 11, fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    required Color color,
-  }) {
-    return Material(
-      color: AppColors.surfaceDarkGrey,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          height: 100,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(20)),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: color.withAlpha(20),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: color, size: 24),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTrendChart(List<double> values, List<String> labels) {
-    if (values.isEmpty) return const SizedBox.shrink();
-
-    // Calculate dynamic height for bars
-    final maxVal = values.reduce((curr, next) => curr > next ? curr : next);
-    final safeMax = maxVal > 0 ? maxVal : 1.0;
-
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceDarkGrey,
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text("Collections Trend", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
-          const Text("Last 6 Months", style: TextStyle(color: AppColors.textGrey, fontSize: 12)),
-          const SizedBox(height: 24),
-          
-          SizedBox(
-            height: 150,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: List.generate(values.length, (index) {
-                final val = values[index];
-                final pct = (val / safeMax).clamp(0.0, 1.0);
-                final label = labels.length > index ? labels[index] : "";
-
-                return Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    // Value Label (only for high values)
-                    if (pct > 0.8) 
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Text(
-                          "\$${(val/1000).toStringAsFixed(1)}k",
-                          style: const TextStyle(color: AppColors.primaryBlue, fontSize: 10, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    
-                    // Bar
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 500),
-                      width: 24, 
-                      // Min height of 10 to ensure visibility
-                      height: 100 * pct + 10,
-                      decoration: BoxDecoration(
-                        color: pct > 0.8 ? AppColors.primaryBlue : AppColors.surfaceLightGrey.withAlpha(30),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    // Month Label
-                    Text(
-                      label,
-                      style: const TextStyle(color: AppColors.textGrey, fontSize: 10, fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                );
-              }),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, color: AppColors.errorRed, size: 48),
+            const SizedBox(height: 16),
+            Text(vm.error!, style: const TextStyle(color: AppColors.textGrey)),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: vm.refresh,
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryBlue),
+              child: const Text("Retry"),
             ),
-          )
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildActivityList(List<Map<String, dynamic>> rawActivities) {
-    if (rawActivities.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(24),
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: AppColors.surfaceDarkGrey,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: const Center(
-          child: Text(
-            "No recent transactions.", 
-            style: TextStyle(color: AppColors.textGrey)
-          )
-        ),
-      );
-    }
-
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: rawActivities.length,
-      itemBuilder: (context, index) {
-        final item = _sanitizeActivity(rawActivities[index]);
-        final isIncome = item['kind'] == _ActivityKind.income;
-        
-        return InkWell(
-          onTap: () => _navToStudentIfPossible(item),
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceDarkGrey,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              children: [
-                // Icon
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: isIncome ? AppColors.successGreen.withAlpha(20) : AppColors.errorRed.withAlpha(20),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    isIncome ? Icons.arrow_downward : Icons.arrow_upward,
-                    color: isIncome ? AppColors.successGreen : AppColors.errorRed,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                
-                // Text Details
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item['name'],
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        item['desc'],
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: AppColors.textGrey, fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-                
-                // Amount & Time
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      "${isIncome ? '+' : '-'}\$${item['amount'].toStringAsFixed(2)}",
-                      style: TextStyle(
-                        color: isIncome ? AppColors.successGreen : Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      item['time'],
-                      style: TextStyle(color: AppColors.textGrey.withAlpha(150), fontSize: 10),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // DATA SANITIZATION (UI Logic to parse dynamic data)
-  // ---------------------------------------------------------------------------
-  
   Map<String, dynamic> _sanitizeActivity(Map<String, dynamic> raw) {
     final name = (raw['name'] ?? 'Unknown').toString().trim();
     final desc = (raw['desc'] ?? raw['description'] ?? 'No description').toString().trim();
@@ -517,14 +644,8 @@ class _FinanceScreenState extends State<FinanceScreen> {
     final amount = (amountNum is num) ? amountNum.toDouble() : 0.0;
     final time = (raw['time'] ?? '').toString().trim();
     final type = (raw['type'] ?? '').toString().toLowerCase().trim();
-    
-    // Attempt to resolve target ID from various common key names
     final targetId = raw['targetId'] ?? raw['studentId'] ?? raw['student_id'];
 
-    // Determine transaction Kind (Income vs Expense)
-    // "Payment" usually means money IN for schools. 
-    // "Invoice" usually means we charged them (Pending) or Debited. 
-    // Fallback: Positive amount is Income.
     final kind = (type.contains('payment'))
         ? _ActivityKind.income
         : (type.contains('invoice') || type.contains('debit') || type.contains('expense'))
@@ -539,6 +660,192 @@ class _FinanceScreenState extends State<FinanceScreen> {
       'kind': kind,
       'targetId': targetId?.toString(),
     };
+  }
+
+  // ---------------------------------------------------------------------------
+  // 6. OUTSTANDING SECTION
+  // ---------------------------------------------------------------------------
+  Widget _buildOutstandingSection(List<Map<String, dynamic>> rows) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                "Outstanding Balances",
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              TextButton(
+                onPressed: _navToDashboardOutstanding,
+                child: const Text("View All", style: TextStyle(color: AppColors.primaryBlue, fontSize: 12)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (rows.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceDarkGrey,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Text("No outstanding balances.", style: TextStyle(color: AppColors.textGrey)),
+            )
+          else
+            Column(
+              children: rows.map((row) {
+                final amount = (row['amount'] as num?)?.toDouble() ?? 0.0;
+                final name = (row['name'] ?? 'Unknown').toString();
+                final grade = (row['grade'] ?? '—').toString();
+                final studentId = (row['id'] ?? '').toString();
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceDarkGrey,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(20)),
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: AppColors.errorRed.withAlpha(20),
+                        child: Text(
+                          name.isNotEmpty ? name[0].toUpperCase() : "?",
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 4),
+                            Text("Grade $grade", style: const TextStyle(color: AppColors.textGrey, fontSize: 12)),
+                          ],
+                        ),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            "\$${amount.toStringAsFixed(0)}",
+                            style: const TextStyle(color: AppColors.errorRed, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 6),
+                          TextButton(
+                            onPressed: studentId.isEmpty
+                                ? null
+                                : () => context.push(
+                                      '${AppRoutes.finance}/${AppRoutes.recordPayment}?studentId=$studentId',
+                                    ),
+                            child: const Text("Log Payment", style: TextStyle(color: AppColors.primaryBlue, fontSize: 11)),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // 7. RECENT PAYMENTS
+  // ---------------------------------------------------------------------------
+  Widget _buildRecentPaymentsSection(List<Map<String, dynamic>> rows) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                "Latest Payments",
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              TextButton(
+                onPressed: _navToDashboardReceived,
+                child: const Text("View All", style: TextStyle(color: AppColors.primaryBlue, fontSize: 12)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (rows.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceDarkGrey,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Text("No recent payments.", style: TextStyle(color: AppColors.textGrey)),
+            )
+          else
+            Column(
+              children: rows.map((row) {
+                final amount = (row['amount'] as num?)?.toDouble() ?? 0.0;
+                final name = (row['name'] ?? 'Unknown').toString();
+                final method = (row['method'] ?? '—').toString();
+                final time = (row['time'] ?? '—').toString();
+                final studentId = (row['studentId'] ?? '').toString();
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceDarkGrey,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(20)),
+                  ),
+                  child: InkWell(
+                    onTap: studentId.isEmpty ? null : () => context.push('${AppRoutes.students}/view/$studentId'),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: AppColors.successGreen.withAlpha(20),
+                          child: const Icon(Icons.arrow_downward, color: AppColors.successGreen, size: 16),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 4),
+                              Text(method, style: const TextStyle(color: AppColors.textGrey, fontSize: 12)),
+                            ],
+                          ),
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              "+\$${amount.toStringAsFixed(0)}",
+                              style: const TextStyle(color: AppColors.successGreen, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(time, style: TextStyle(color: AppColors.textGrey.withAlpha(120), fontSize: 10)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+        ],
+      ),
+    );
   }
 }
 

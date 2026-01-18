@@ -84,3 +84,7 @@ export 'package:legend/data/vmodels/students_vmodel.dart';
 export 'package:legend/screens/all_screens_export.dart';
 export 'package:legend/screens/dashboard/notifications/noti_viewer.dart';
 export 'package:legend/screens/utils/subject_selector_field.dart';
+
+export 'package:legend/data/constants/app_routes.dart';
+export 'package:legend/screens/finance/logging_payments.dart';
+export 'package:legend/screens/settings/splash_screen.dart';

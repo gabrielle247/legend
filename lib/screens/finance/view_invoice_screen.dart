@@ -10,6 +10,7 @@ import 'package:legend/data/models/all_models.dart';
 import 'package:legend/data/repo/financial_repo.dart';
 import 'package:legend/data/repo/student_repo.dart';
 import 'package:legend/data/vmodels/view_invoice_view_model.dart';
+import 'package:legend/screens/finance/printing_receipt_screen.dart';
 
 // =============================================================================
 // VIEW INVOICE SCREEN (Complete + matches your ViewInvoiceViewModel)
@@ -17,7 +18,7 @@ import 'package:legend/data/vmodels/view_invoice_view_model.dart';
 // - Calls vm.load() (not loadInvoice)
 // - Reads invoice/items/student from vm fields (no missing getters)
 // - No map indexing on InvoiceItem (uses dynamic-safe field access)
-// - WhatsApp share kept as UI button but stubbed (no missing vm method)
+// - WhatsApp share routes to receipt preview screen
 // =============================================================================
 class ViewInvoiceScreen extends StatefulWidget {
   final String? invoiceId;
@@ -71,11 +72,32 @@ class _ViewInvoiceScreenState extends State<ViewInvoiceScreen> {
     await _vm?.load();
   }
 
-  void _shareStub() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("WhatsApp share not wired yet (offline-first export comes later)."),
-        backgroundColor: AppColors.surfaceLightGrey,
+  void _openReceiptScreen(ViewInvoiceViewModel vm) {
+    final invoice = vm.invoice;
+    final items = vm.items.map((it) {
+      final qty = it.quantity <= 0 ? 1 : it.quantity;
+      return {
+        'desc': it.description,
+        'amount': it.amount * qty,
+      };
+    }).toList();
+
+    final data = {
+      'id': invoice?.invoiceNumber ?? invoice?.id ?? '---',
+      'date': (invoice?.createdAt ?? DateTime.now()).toIso8601String(),
+      'student': vm.student?.fullName ?? '—',
+      'items': items,
+      'total': vm.total,
+      'cashier': 'System',
+    };
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PrintReceiptScreen(
+          data: data,
+          type: ReceiptType.invoice,
+        ),
       ),
     );
   }
@@ -214,24 +236,14 @@ class _ViewInvoiceScreenState extends State<ViewInvoiceScreen> {
             icon: const Icon(Icons.edit_note, color: Colors.white),
             tooltip: "Edit Invoice",
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text("Invoice editing not wired yet."),
-                  backgroundColor: AppColors.surfaceLightGrey,
-                ),
-              );
+              _openReceiptScreen(vm);
             },
           ),
           IconButton(
             icon: const Icon(Icons.print, color: Colors.white),
             tooltip: "Print",
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text("Printing not wired yet."),
-                  backgroundColor: AppColors.surfaceLightGrey,
-                ),
-              );
+              _openReceiptScreen(vm);
             },
           ),
         ],
@@ -260,7 +272,7 @@ class _ViewInvoiceScreenState extends State<ViewInvoiceScreen> {
           child: SizedBox(
             height: 56,
             child: ElevatedButton.icon(
-              onPressed: _shareStub,
+              onPressed: () => _openReceiptScreen(vm),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF25D366),
                 foregroundColor: Colors.white,
@@ -333,40 +345,7 @@ class _InvoicePaper extends StatelessWidget {
   }
 
   String _studentName(Student? student) {
-    if (student == null) return "—";
-    final d = student as dynamic;
-
-    // Try common field names safely.
-    for (final key in const ["name", "fullName", "studentName"]) {
-      try {
-        dynamic v;
-        if (d is Map && d.containsKey(key)) {
-          v = d[key];
-        }
-        if (v != null && v.toString().trim().isNotEmpty) return v.toString().trim();
-      } catch (_) {}
-      try {
-        final v = (d as dynamic).__getattribute__(key); // will fail in Dart; caught
-        if (v != null && v.toString().trim().isNotEmpty) return v.toString().trim();
-      } catch (_) {}
-      try {
-        // ignore: unused_local_variable
-        final v = (d as dynamic).noSuchMethod; // placeholder; caught
-        // ignore
-      } catch (_) {}
-    }
-
-    // Fallback: attempt direct common property access via dynamic.
-    try {
-      final v = (student as dynamic).name;
-      if (v != null && v.toString().trim().isNotEmpty) return v.toString().trim();
-    } catch (_) {}
-    try {
-      final v = (student as dynamic).fullName;
-      if (v != null && v.toString().trim().isNotEmpty) return v.toString().trim();
-    } catch (_) {}
-
-    return "—";
+    return student?.fullName ?? "—";
   }
 
   String _itemDesc(InvoiceItem it) {

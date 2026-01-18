@@ -1,5 +1,5 @@
 import 'package:legend/app_libs.dart';
-
+import 'package:legend/screens/finance/printing_receipt_screen.dart';
 import 'package:legend/data/vmodels/logging_payments_view_model.dart';
 
 class LoggingPaymentsScreen extends StatelessWidget {
@@ -86,7 +86,7 @@ class _LoggingPaymentsFormState extends State<_LoggingPaymentsForm> {
         backgroundColor: AppColors.backgroundBlack,
         elevation: 0,
         leading: IconButton(
-          onPressed: () {},
+          onPressed: () => context.pop(),
           icon: const Icon(Icons.receipt_long_rounded, color: Colors.white),
         ),
         title: const Text("Make Payment", style: TextStyle(fontWeight: FontWeight.bold)),
@@ -316,6 +316,49 @@ class _LoggingPaymentsFormState extends State<_LoggingPaymentsForm> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _showReceiptPreview(vm),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: AppColors.surfaceLightGrey.withAlpha(40)),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          icon: const Icon(Icons.receipt_long, size: 18),
+                          label: const Text("Receipt"),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _openReceiptScreen(vm),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: AppColors.surfaceLightGrey.withAlpha(40)),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          icon: const Icon(Icons.print, size: 18),
+                          label: const Text("Print"),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _openReceiptScreen(vm),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: AppColors.surfaceLightGrey.withAlpha(40)),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          icon: const Icon(Icons.share, size: 18),
+                          label: const Text("Share"),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
                   SizedBox(
                     height: 52,
                     child: ElevatedButton(
@@ -491,5 +534,113 @@ class _LoggingPaymentsFormState extends State<_LoggingPaymentsForm> {
     if (n < 0.50) return "Minimum is \$0.50";
     if (n > 500000) return "Maximum is \$500,000";
     return null;
+  }
+
+  void _showReceiptPreview(LoggingPaymentsViewModel vm) {
+    final studentName = vm.student?.fullName ?? "—";
+    final method = vm.method.trim().isEmpty ? "Cash" : vm.method.trim();
+    final ref = vm.reference.trim();
+    final amount = vm.amount;
+    final now = DateTime.now();
+    final debt = vm.totalOutstandingDebt;
+    final surplus = vm.remainingCreditAfterDebt;
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.backgroundBlack,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  "RECEIPT PREVIEW",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.textGrey, fontSize: 11, letterSpacing: 2),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceDarkGrey,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(30)),
+                  ),
+                  child: Column(
+                    children: [
+                      _receiptRow("Date", DateFormat("dd/MM/yyyy HH:mm").format(now)),
+                      _receiptRow("Student", studentName),
+                      _receiptRow("Method", method),
+                      if (ref.isNotEmpty) _receiptRow("Reference", ref),
+                      const SizedBox(height: 8),
+                      _receiptRow("Outstanding", "\$${debt.toStringAsFixed(2)}"),
+                      if (surplus > 0) _receiptRow("Surplus", "\$${surplus.toStringAsFixed(2)}"),
+                      const Divider(height: 20, color: Colors.white12),
+                      _receiptRow("Amount Paid", "\$${amount.toStringAsFixed(2)}"),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text("Close", style: TextStyle(color: AppColors.primaryBlue)),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _openReceiptScreen(LoggingPaymentsViewModel vm) {
+    final now = DateTime.now();
+    final studentName = vm.student?.fullName ?? "—";
+    final method = vm.method.trim().isEmpty ? "Cash" : vm.method.trim();
+    final amount = vm.amount;
+    final ref = vm.reference.trim();
+
+    final data = {
+      'id': 'PAY-${now.millisecondsSinceEpoch}',
+      'date': now.toIso8601String(),
+      'student': studentName,
+      'items': [
+        {
+          'desc': ref.isEmpty ? 'Payment ($method)' : 'Payment ($method) - $ref',
+          'amount': amount,
+        }
+      ],
+      'total': amount,
+      'cashier': 'System',
+    };
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PrintReceiptScreen(
+          data: data,
+          type: ReceiptType.payment,
+        ),
+      ),
+    );
+  }
+
+  Widget _receiptRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: AppColors.textGrey, fontSize: 12)),
+          Text(value, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
   }
 }

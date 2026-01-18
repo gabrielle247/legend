@@ -71,7 +71,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       title: AppStrings.itemEditProfile,
                       subtitle: AppStrings.subManageProfile,
                       isLocked: true,
-                      onTap: () {},
+                      onTap: () => _showFutureRelease(context),
                     ),
                     _buildDivider(),
                     _buildTile(
@@ -80,7 +80,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       title: AppStrings.itemSchool,
                       subtitle: AppStrings.subSchoolConfig,
                       isLocked: true,
-                      onTap: () {},
+                      onTap: () => _showFutureRelease(context),
                     ),
                   ],
                 ),
@@ -789,5 +789,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
         SnackBar(content: Text(e.toString()), backgroundColor: AppColors.errorRed),
       );
     }
+  }
+
+  void _showFutureRelease(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Future release."),
+        backgroundColor: AppColors.surfaceLightGrey,
+      ),
+    );
   }
 }

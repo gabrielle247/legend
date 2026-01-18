@@ -54,6 +54,10 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
   final TextEditingController _refCtrl = TextEditingController();
 
   bool _attemptedSubmit = false;
+  bool _isSubmitting = false;
+  bool _isLoadingStudents = false;
+  List<Student> _students = [];
+  String _studentQuery = "";
 
 @override
 void initState() {
@@ -83,13 +87,13 @@ void initState() {
     _vm.method = _vm.method.isEmpty ? "Cash" : _vm.method;
     if (mounted) setState(() {});
   }
-@override
-void dispose() {
-  _amountCtrl.dispose();
-  _refCtrl.dispose();
-  _vm.dispose();
-  super.dispose();
-}
+  @override
+  void dispose() {
+    _amountCtrl.dispose();
+    _refCtrl.dispose();
+    _vm.dispose();
+    super.dispose();
+  }
 
   // ---------------------------------------------------------------------------
   // BUSINESS CALCS (no placebo)
@@ -122,10 +126,178 @@ void dispose() {
 
   bool get _studentIsSelected => (_vm.studentId ?? "").trim().isNotEmpty && _vm.studentName.trim().isNotEmpty;
 
+  Future<void> _openStudentPicker() async {
+    if (_isLoadingStudents) return;
+    if (_students.isEmpty) {
+      setState(() => _isLoadingStudents = true);
+      try {
+        final auth = context.read<AuthService>();
+        final school = auth.activeSchool;
+        if (school == null) throw Exception("No active school.");
+        _students = await context.read<StudentRepository>().getStudents(school.id);
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(e.toString())),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _isLoadingStudents = false);
+      }
+    }
+
+    if (!mounted) return;
+
+    _studentQuery = "";
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.backgroundBlack,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            final q = _studentQuery.toLowerCase().trim();
+            final filtered = _students.where((s) {
+              if (q.isEmpty) return true;
+              return s.firstName.toLowerCase().contains(q) ||
+                  s.lastName.toLowerCase().contains(q) ||
+                  (s.admissionNumber?.toLowerCase().contains(q) ?? false);
+            }).toList();
+            final recent = List<Student>.from(_students)
+              ..sort((a, b) {
+                final ad = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+                final bd = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+                return bd.compareTo(ad);
+              });
+
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: 16,
+                  right: 16,
+                  top: 12,
+                  bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceLightGrey.withAlpha(80),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      "Select Student",
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      onChanged: (val) => setModalState(() => _studentQuery = val),
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: "Search by name or admission...",
+                        hintStyle: TextStyle(color: Colors.white.withAlpha(120)),
+                        prefixIcon: const Icon(Icons.search, color: AppColors.primaryBlue),
+                        filled: true,
+                        fillColor: AppColors.surfaceDarkGrey,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (_studentQuery.trim().isEmpty && recent.isNotEmpty) ...[
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          "Recent",
+                          style: TextStyle(color: Colors.white.withAlpha(180), fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: recent.take(5).map((s) {
+                          final name = "${s.firstName} ${s.lastName}".trim();
+                          return ActionChip(
+                            label: Text(name, overflow: TextOverflow.ellipsis),
+                            backgroundColor: AppColors.surfaceDarkGrey,
+                            labelStyle: const TextStyle(color: Colors.white, fontSize: 12),
+                            side: BorderSide(color: AppColors.surfaceLightGrey.withAlpha(30)),
+                            onPressed: () {
+                              setState(() {
+                                _vm.studentId = s.id;
+                                _vm.student = s;
+                                _attemptedSubmit = false;
+                              });
+                              Navigator.pop(ctx);
+                            },
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    SizedBox(
+                      height: 360,
+                      child: _isLoadingStudents
+                          ? const Center(child: CircularProgressIndicator(color: AppColors.primaryBlue))
+                          : filtered.isEmpty
+                              ? const Center(
+                                  child: Text("No matches found.", style: TextStyle(color: AppColors.textGrey)),
+                                )
+                              : ListView.separated(
+                                  itemCount: filtered.length,
+                                  separatorBuilder: (_, __) => Divider(
+                                    color: AppColors.surfaceLightGrey.withAlpha(30),
+                                    height: 1,
+                                  ),
+                                  itemBuilder: (ctx, index) {
+                                    final s = filtered[index];
+                                    final name = "${s.firstName} ${s.lastName}".trim();
+                                    final adm = (s.admissionNumber ?? "").trim();
+
+                                    return ListTile(
+                                      title: Text(name, style: const TextStyle(color: Colors.white)),
+                                      subtitle: Text(
+                                        adm.isEmpty ? "No admission no." : adm,
+                                        style: const TextStyle(color: AppColors.textGrey, fontSize: 12),
+                                      ),
+                                      onTap: () {
+                                        setState(() {
+                                          _vm.studentId = s.id;
+                                          _vm.student = s;
+                                          _attemptedSubmit = false;
+                                        });
+                                        Navigator.pop(ctx);
+                                      },
+                                    );
+                                  },
+                                ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // ACTION: Confirm (returns PaymentDraft)
   // ---------------------------------------------------------------------------
-  void _confirm() {
+  Future<void> _confirm() async {
     setState(() => _attemptedSubmit = true);
 
     if (!_studentIsSelected) {
@@ -159,23 +331,24 @@ void dispose() {
       return;
     }
 
-    final now = DateTime.now();
+    if (_isSubmitting) return;
+    setState(() => _isSubmitting = true);
 
-    final draft = PaymentDraft(
-      studentId: _vm.studentId!,
-      studentName: _vm.studentName.trim(),
-      amount: _amount,
-      method: method,
-      reference: _vm.reference.trim(),
-      receivedAt: now,
-      balanceBefore: _balanceBefore,
-      balanceAfter: _balanceAfter,
-      overpayment: _overpayment,
-      receiptNumber: _makeReceiptNumber(now),
-    );
-
-    // No placebo: return result to caller for offline-first persistence
-    context.pop(draft);
+    try {
+      await _vm.submitPayment();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Payment recorded successfully")),
+      );
+      context.pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -262,7 +435,7 @@ void dispose() {
           child: SizedBox(
             height: 56,
             child: ElevatedButton.icon(
-              onPressed: _confirm,
+              onPressed: _isSubmitting ? null : _confirm,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.successGreen,
                 foregroundColor: Colors.white,
@@ -271,10 +444,16 @@ void dispose() {
                 shadowColor: AppColors.successGreen.withAlpha(100),
               ),
               icon: const Icon(Icons.check_circle_outline, size: 20),
-              label: Text(
-                widget.studentId == null ? "CONFIRM PAYMENT" : "CONFIRM PAYMENT",
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
+              label: _isSubmitting
+                  ? const SizedBox(
+                      height: 16,
+                      width: 16,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                    )
+                  : const Text(
+                      "CONFIRM PAYMENT",
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
             ),
           ),
         ),
@@ -334,16 +513,7 @@ void dispose() {
           ),
           if (showChange)
             TextButton(
-              onPressed: () {
-                // Intentionally not implemented now (per your flow).
-                // This is a hard blocker for confirming if student is missing.
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("Student search will be added when bulk/lookup flow is implemented."),
-                    backgroundColor: AppColors.surfaceLightGrey,
-                  ),
-                );
-              },
+              onPressed: _openStudentPicker,
               child: const Text("Change"),
             ),
         ],
