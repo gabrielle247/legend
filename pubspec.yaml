@@ -66,4 +66,4 @@ flutter_launcher_name:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/trace.png"
+  image_path: "assets/images/trace.svg"
