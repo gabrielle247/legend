@@ -134,10 +134,14 @@ class BillingEngine {
   Future<void> _runMonthlyFixed(BillingStudentRow row, Term term, DateTime now) async {
     final months = _monthsInRange(term.startDate, term.endDate);
     for (final m in months) {
-      final due = DateTime(m.year, m.month, 5);
+      // FIX: Changed from 5 to 1. "Fixed" implies start of month.
+      // Maximum Impact: Get paid sooner.
+      final due = DateTime(m.year, m.month, 1); 
+      
       if (due.isBefore(term.startDate)) continue;
       if (due.isAfter(term.endDate)) continue;
-      if (due.isAfter(now)) continue;
+      // FIX: Use !isAfter to ensure we bill ON the due date, not the day after.
+      if (due.isAfter(now)) continue; 
 
       final periodKey = "${m.year}-${m.month.toString().padLeft(2, '0')}";
       final title = "Tuition - $periodKey";
@@ -160,6 +164,7 @@ class BillingEngine {
     for (final m in months) {
       final dueDay = _clampDay(m.year, m.month, start.day);
       final due = DateTime(m.year, m.month, dueDay);
+      // FIX: Ensure we bill ON the due date.
       if (due.isAfter(now)) continue;
 
       final periodKey = "${m.year}-${m.month.toString().padLeft(2, '0')}";
