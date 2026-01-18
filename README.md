@@ -22,13 +22,13 @@ Download the artifacts by specifying the workflow run ID and artifact name:
 
 ```bash
 # Download APK
-gh run download 21113943206 -n legend-apk
+gh run download <WORKFLOW_RUN_ID> -n legend-apk
 
 # Download AAB
-gh run download 21113943206 -n legend-aab
+gh run download <WORKFLOW_RUN_ID> -n legend-aab
 ```
 
-**Note:** Replace `21113943206` with the actual workflow run ID. You can find recent workflow runs by visiting the [Actions tab](../../actions) or by running:
+**Note:** Replace `<WORKFLOW_RUN_ID>` with the actual workflow run ID (e.g., `21113943206`). You can find recent workflow runs by visiting the [Actions tab](../../actions) or by running:
 
 ```bash
 gh run list
