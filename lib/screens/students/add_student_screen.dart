@@ -97,13 +97,15 @@ class _AddStudentContentState extends State<_AddStudentContent> {
     // 3) Financial guardrails (critical to prevent silent credit loss)
     final openingDebt = vm.totalDebt;
     final initialPayment = vm.initialPay;
+    final tuitionAmount = vm.tuitionAmount;
+    final projectedInvoice = vm.generateInvoiceNow ? tuitionAmount : 0.0;
 
-    if (openingDebt <= 0 && initialPayment > 0) {
-      _showError("Initial Payment requires an Opening Balance. Set Opening Balance first or keep Initial Payment at 0.");
+    if (initialPayment > 0 && openingDebt <= 0 && projectedInvoice <= 0) {
+      _showError("Initial Payment needs an Opening Balance or a First Invoice. Enable first invoice or keep Initial Payment at 0.");
       return;
     }
-    if (initialPayment > openingDebt && openingDebt > 0) {
-      _showError("Initial Payment cannot be greater than Opening Balance.");
+    if (initialPayment > openingDebt + projectedInvoice) {
+      _showError("Initial Payment cannot exceed Opening Balance plus the First Invoice.");
       return;
     }
 
@@ -569,10 +571,12 @@ class _FinancialSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final openingDebt = vm.totalDebt;
     final initialPaid = vm.initialPay;
-    final netDue = vm.netOutstanding;
+    final projectedInvoice = vm.projectedFirstInvoice;
+    final netDue = vm.projectedNetDue;
 
     final bool hasDebt = openingDebt > 0;
-    final bool invalidDeposit = (openingDebt <= 0 && initialPaid > 0) || (initialPaid > openingDebt && openingDebt > 0);
+    final bool invalidDeposit = (initialPaid > 0 && openingDebt <= 0 && projectedInvoice <= 0) ||
+        (initialPaid > openingDebt + projectedInvoice);
 
     return _SectionCard(
       title: "FINANCIAL PROFILE",
@@ -624,6 +628,41 @@ class _FinancialSection extends StatelessWidget {
 
         _InfoBanner(
           tone: _BannerTone.neutral,
+          title: "First Invoice",
+          message: "Generate the first tuition invoice now to keep the ledger balanced.",
+        ),
+        const SizedBox(height: 10),
+
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceDarkGrey,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.surfaceLightGrey.withAlpha(80)),
+          ),
+          child: Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  "Generate first invoice now",
+                  style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+              ),
+              Switch(
+                value: vm.generateInvoiceNow,
+                activeColor: AppColors.primaryBlue,
+                onChanged: (val) => vm.generateInvoiceNow = val,
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 14),
+        const Divider(color: AppColors.surfaceLightGrey, thickness: 0.5),
+        const SizedBox(height: 14),
+
+        _InfoBanner(
+          tone: _BannerTone.neutral,
           title: "Opening Balance (Previous Debt)",
           message: "Only use this if the student is joining with an existing balance brought forward.",
         ),
@@ -658,7 +697,7 @@ class _FinancialSection extends StatelessWidget {
         _InfoBanner(
           tone: _BannerTone.neutral,
           title: "Initial Payment (Deposit)",
-          message: "For now, this only applies to the Opening Balance. No Opening Balance = keep Initial Payment at 0.",
+          message: "Applied to Opening Balance first, then to the first invoice (if enabled).",
         ),
         const SizedBox(height: 10),
 
@@ -689,9 +728,9 @@ class _FinancialSection extends StatelessWidget {
           _InfoBanner(
             tone: _BannerTone.danger,
             title: "Fix Payment Inputs",
-            message: openingDebt <= 0
-                ? "Initial Payment requires an Opening Balance."
-                : "Initial Payment cannot exceed the Opening Balance.",
+            message: (openingDebt <= 0 && projectedInvoice <= 0)
+                ? "Initial Payment needs an Opening Balance or a First Invoice."
+                : "Initial Payment cannot exceed Opening Balance plus the First Invoice.",
           ),
         ],
 
@@ -717,21 +756,31 @@ class _FinancialSection extends StatelessWidget {
               const SizedBox(height: 8),
               _kv("Opening Balance", _money(openingDebt), valueColor: openingDebt > 0 ? AppColors.errorRed : Colors.white),
               const SizedBox(height: 6),
+              _kv(
+                "First Invoice",
+                _money(projectedInvoice),
+                valueColor: projectedInvoice > 0 ? AppColors.primaryBlueLight : Colors.white,
+              ),
+              const SizedBox(height: 6),
               _kv("Initial Payment", _money(initialPaid), valueColor: initialPaid > 0 ? AppColors.successGreen : Colors.white),
               const SizedBox(height: 6),
               const Divider(color: AppColors.surfaceLightGrey, thickness: 0.4),
               const SizedBox(height: 6),
               _kv(
-                "Net Carry-Over",
+                "Projected Balance",
                 _money(netDue),
                 valueColor: netDue <= 0 ? AppColors.successGreen : AppColors.errorRed,
                 bold: true,
               ),
               const SizedBox(height: 6),
               Text(
-                netDue <= 0 && openingDebt > 0 ? "Status: Cleared at admission" : "Status: Balance carries forward",
+                netDue <= 0 && (openingDebt > 0 || projectedInvoice > 0)
+                    ? "Status: Cleared at admission"
+                    : "Status: Balance carries forward",
                 style: TextStyle(
-                  color: netDue <= 0 && openingDebt > 0 ? AppColors.successGreen : AppColors.textGrey,
+                  color: netDue <= 0 && (openingDebt > 0 || projectedInvoice > 0)
+                      ? AppColors.successGreen
+                      : AppColors.textGrey,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
@@ -772,16 +821,19 @@ class _AdmissionSummaryPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final openingDebt = vm.totalDebt;
     final initialPaid = vm.initialPay;
+    final projectedInvoice = vm.projectedFirstInvoice;
+    final projectedTotal = vm.projectedTotalDue;
 
     final bool missingGrade = vm.selectedGradeName == null || vm.selectedGradeName!.trim().isEmpty;
     final bool missingSubjects = vm.selectedSubjects.isEmpty;
-    final bool depositInvalid = (openingDebt <= 0 && initialPaid > 0) || (openingDebt > 0 && initialPaid > openingDebt);
+    final bool depositInvalid = (initialPaid > 0 && projectedTotal <= 0) ||
+        (initialPaid > projectedTotal);
 
     final warnings = <String>[];
     if (missingGrade) warnings.add("Grade not selected");
     if (missingSubjects) warnings.add("No subjects selected");
     if (depositInvalid) {
-      warnings.add(openingDebt <= 0 ? "Initial Payment requires Opening Balance" : "Initial Payment exceeds Opening Balance");
+      warnings.add(projectedTotal <= 0 ? "Initial Payment needs a balance or first invoice" : "Initial Payment exceeds total due");
     }
 
     return Container(
@@ -804,8 +856,9 @@ class _AdmissionSummaryPanel extends StatelessWidget {
           const Divider(color: AppColors.surfaceLightGrey, thickness: 0.5),
           const SizedBox(height: 10),
           _summaryLine("Opening Balance", _money(vm.totalDebt)),
+          _summaryLine("First Invoice", _money(vm.projectedFirstInvoice)),
           _summaryLine("Initial Payment", _money(vm.initialPay)),
-          _summaryLine("Net Carry-Over", _money(vm.netOutstanding)),
+          _summaryLine("Projected Balance", _money(vm.projectedNetDue)),
           const SizedBox(height: 12),
           if (warnings.isNotEmpty) ...[
             _InfoBanner(
