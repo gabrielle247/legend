@@ -237,10 +237,15 @@ class StudentRepository {
         );
       }
 
-      final gradeRow = await tx.get(
+      final gradeRow = await tx.getOptional(
         "SELECT g.name as grade_name FROM classes c JOIN grades g ON c.grade_id = g.id WHERE c.id = ?",
         [classId],
       );
+      if (gradeRow == null) {
+        throw StudentException(
+          "Selected class is invalid or missing a linked grade.",
+        );
+      }
       final String gradeLevel =
           (gradeRow['grade_name'] as String?) ?? 'Unknown';
 

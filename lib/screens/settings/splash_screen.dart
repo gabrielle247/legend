@@ -39,31 +39,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     // 2. START ANIMATION
     _controller.forward();
 
-    // 3. NAVIGATE AFTER DELAY
-    _navigateToNext();
-  }
-
-  Future<void> _navigateToNext() async {
-    await Future.delayed(const Duration(seconds: 10));
-    if (!mounted) return;
-
-    final auth = context.read<AuthService>();
-    if (auth.isLoading) {
-      // Let the router/auth listener resolve once auth finishes.
-      return;
-    }
-
-    if (!auth.isAuthenticated) {
-      context.go(AppRoutes.login);
-      return;
-    }
-
-    if (auth.requiresOnlineSetup) {
-      context.go(AppRoutes.offlineSetup);
-      return;
-    }
-
-    context.go(AppRoutes.dashboard);
   }
 
   @override

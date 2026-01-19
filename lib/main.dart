@@ -39,6 +39,7 @@ void main() async {
         // REPOSITORIES
         // =========================
         Provider<AuthRepository>(create: (_) => authRepository),
+        Provider<SchoolRepository>(create: (_) => schoolRepository),
         Provider<DashboardRepository>(create: (_) => dashboardRepository),
         Provider<StudentRepository>(create: (_) => studentRepository),
         Provider<FinanceRepository>(create: (_) => financeRepository),

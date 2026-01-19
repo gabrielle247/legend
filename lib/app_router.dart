@@ -22,6 +22,8 @@ class LegendRouter {
     // 2. REDIRECT LOGIC
     redirect: (context, state) {
       final isLoggedIn = authService.isAuthenticated;
+      final isLoading = authService.isLoading;
+      final requiresProfile = authService.requiresProfileSetup;
       final requiresSetup = authService.requiresOnlineSetup;
       final location = state.uri.toString();
 
@@ -30,25 +32,38 @@ class LegendRouter {
                           location == AppRoutes.resetPassword ||
                           location == AppRoutes.tos;
       
-      final isSetupRoute = location == '/offline-setup';
+      final isProfileRoute = location == AppRoutes.profileSetup;
+      final isSetupRoute = location == AppRoutes.createSchool;
       final isSplashRoute = location == AppRoutes.splash;
 
-      // A. Not Logged In? -> Go Login
+      // A. Still loading? Stay on splash.
+      if (isLoading) {
+        return isSplashRoute ? null : AppRoutes.splash;
+      }
+
+      // B. Not Logged In? -> Go Login
       if (!isLoggedIn) {
-        if (!isAuthRoute && !isSplashRoute) return AppRoutes.login;
+        if (isSplashRoute) return AppRoutes.login;
+        if (!isAuthRoute) return AppRoutes.login;
         return null;
       }
 
-      // B. Logged In?
-      if (isLoggedIn) {
-        // i. Security Check
-        if (requiresSetup) {
-          if (!isSetupRoute && !isSplashRoute) return '/offline-setup';
-          return null;
-        }
-        
-        // ii. Already Auth? -> Go Dashboard
-        if (isAuthRoute || isSetupRoute) return AppRoutes.dashboard;
+      // C. Logged In?
+      if (requiresProfile) {
+        if (!isProfileRoute) return AppRoutes.profileSetup;
+        return null;
+      }
+
+      // i. Security Check
+      if (requiresSetup) {
+        if (isSplashRoute) return AppRoutes.createSchool;
+        if (!isSetupRoute) return AppRoutes.createSchool;
+        return null;
+      }
+
+      // ii. Already Auth? -> Go Dashboard
+      if (isSplashRoute || isAuthRoute || isSetupRoute || isProfileRoute) {
+        return AppRoutes.dashboard;
       }
 
       return null;
@@ -84,8 +99,12 @@ class LegendRouter {
         builder: (context, state) => const TosScreen(),
       ),
       GoRoute(
-        path: '/offline-setup',
-        builder: (context, state) => const OfflineSetupScreen(),
+        path: AppRoutes.profileSetup,
+        builder: (context, state) => const CreateProfileScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.createSchool,
+        builder: (context, state) => const CreateSchoolScreen(),
       ),
 
       // =======================================================================

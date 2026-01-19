@@ -1,6 +1,8 @@
 export 'auth/login_screen.dart';
 export 'auth/forgot_password.dart';
 export 'auth/sign_up_screen.dart';
+export 'auth/create_profile_screen.dart';
+export 'auth/create_school_screen.dart';
 export 'dashboard/dashboard_screen.dart';
 export 'dashboard/notifications_screen.dart';
 export 'dashboard/statistics_screen.dart';

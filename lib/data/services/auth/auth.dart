@@ -15,12 +15,14 @@ class AuthService extends ChangeNotifier {
   SchoolConfig? _activeSchool;
   bool _isLoading = true;
   bool _requiresOnlineSetup = false;
+  bool _requiresProfileSetup = false;
 
   // GETTERS
   User? get user => _authRepo.currentUser;
   SchoolConfig? get activeSchool => _activeSchool;
   bool get isLoading => _isLoading;
   bool get requiresOnlineSetup => _requiresOnlineSetup;
+  bool get requiresProfileSetup => _requiresProfileSetup;
   bool get isAuthenticated => _authRepo.currentUser != null;
 
   AuthService(this._authRepo, this._schoolRepo) {
@@ -36,6 +38,7 @@ class AuthService extends ChangeNotifier {
     if (userId == null) {
       _isLoading = false;
       _requiresOnlineSetup = false;
+      _requiresProfileSetup = false;
       _activeSchool = null;
       notifyListeners();
       return;
@@ -44,12 +47,26 @@ class AuthService extends ChangeNotifier {
     debugPrint("🔄 Restoring session for: $userId");
 
     try {
+      try {
+        final exists = await _schoolRepo.profileExists(userId);
+        if (!exists) {
+          _requiresProfileSetup = true;
+          _requiresOnlineSetup = false;
+          _activeSchool = null;
+          return;
+        }
+        _requiresProfileSetup = false;
+      } catch (e) {
+        debugPrint("⚠️ Profile check failed: $e");
+      }
+
       // A) Try local cache FIRST (must be user-scoped)
       _activeSchool = await _schoolRepo.getLocalSchool(userId);
 
       if (_activeSchool != null) {
         debugPrint("✅ Offline Session Restored: ${_activeSchool!.name}");
         _requiresOnlineSetup = false;
+        _requiresProfileSetup = false;
 
         // Ignite PowerSync immediately with cached config
         await _connectPowerSync();
@@ -135,8 +152,21 @@ class AuthService extends ChangeNotifier {
         throw Exception("Login succeeded but userId is null.");
       }
 
+      final hasProfile = await _schoolRepo.profileExists(userId);
+      if (!hasProfile) {
+        _requiresProfileSetup = true;
+        _requiresOnlineSetup = false;
+        _activeSchool = null;
+        return;
+      }
+
       // Must succeed on initial login: fetch school online + cache + connect powersync
       await _fetchSchoolOnline(userId);
+    } on SchoolException catch (e) {
+      debugPrint("Login requires school setup: $e");
+      _activeSchool = null;
+      _requiresOnlineSetup = true;
+      _requiresProfileSetup = false;
     } catch (e) {
       debugPrint("Login Error: $e");
       rethrow;
@@ -144,6 +174,34 @@ class AuthService extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  Future<void> completeProfileSetup() async {
+    final userId = _authRepo.currentUser?.id;
+    if (userId == null) return;
+
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      _requiresProfileSetup = false;
+      await _fetchSchoolOnline(userId);
+    } on SchoolException catch (e) {
+      debugPrint("Profile setup requires school setup: $e");
+      _activeSchool = null;
+      _requiresOnlineSetup = true;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> completeSchoolSetup(SchoolConfig config) async {
+    _activeSchool = config;
+    _requiresOnlineSetup = false;
+    _requiresProfileSetup = false;
+    await _connectPowerSync();
+    notifyListeners();
   }
 
   Future<void> logout() async {
@@ -164,6 +222,7 @@ class AuthService extends ChangeNotifier {
     // Clear state
     _activeSchool = null;
     _requiresOnlineSetup = false;
+    _requiresProfileSetup = false;
 
     // Clear user-scoped cache (if we still know userId)
     if (userId != null) {

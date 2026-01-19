@@ -12,7 +12,7 @@ export 'dart:math';
 // 2. FLUTTER
 // -----------------------------------------------------------------------------
 export 'package:flutter/foundation.dart';
-export 'package:flutter/material.dart' hide Table;
+export 'package:flutter/material.dart';
 
 // NOTE: Do NOT export Cupertino here (RefreshCallback clash).
 // If a file needs Cupertino, import it locally in that file.

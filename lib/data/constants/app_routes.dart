@@ -4,7 +4,8 @@ class AppRoutes {
   static const signup = '/signup';
   static const resetPassword = '/reset-password';
   static const tos = '/tos';
-  static const offlineSetup = '/offline-setup';
+  static const profileSetup = '/profile-setup';
+  static const createSchool = '/create-school';
   static const splash = '/';
 
   // Shell roots
