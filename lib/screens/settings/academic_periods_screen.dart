@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:legend/data/constants/app_constants.dart';
 import 'package:legend/data/constants/app_strings.dart';
+import 'package:legend/data/models/academy_year.dart';
+import 'package:legend/data/models/term.dart';
 import 'package:legend/data/repo/academic_period_repo.dart';
 import 'package:legend/data/services/auth/auth.dart';
 import 'package:legend/data/vmodels/academic_periods_view_model.dart';

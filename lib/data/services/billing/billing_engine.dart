@@ -9,8 +9,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 class BillingEngine {
-
-  //TODO Local Notifications example statistics and reminders
   static final BillingEngine _instance = BillingEngine._internal(_DbBillingDataSource());
   factory BillingEngine() => _instance;
   BillingEngine._internal(this._source);
