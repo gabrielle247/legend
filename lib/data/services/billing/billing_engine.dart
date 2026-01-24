@@ -1,17 +1,4 @@
-// ============================================================================
-// FILE: lib/data/services/billing_engine.dart
-// ============================================================================
-// Stable-alpha hardening (no schema changes required):
-// 1) Deterministic invoice identity via invoice_number (not title/description).
-// 2) Correct whitespace regex in invoice number normalization.
-// 3) Stable periodKey generation (MONTH: YYYY-MM, TERM: TERM-{termId}, YEAR: YEAR-{yearId}).
-//
-// Note on totals safety:
-// - If an existing invoice is missing its tuition item, we LOG an error and SKIP mutation,
-//   because we do not have a guaranteed invoice-total update API in the provided code.
-//   This avoids silently corrupting totals. Clean-up can be manual for pre-existing bad rows.
-// ============================================================================
-
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:legend/data/constants/app_strings.dart';
@@ -22,22 +9,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 class BillingEngine {
-  static final BillingEngine _instance =
-      BillingEngine._internal(_DbBillingDataSource());
 
+  //TODO Local Notifications example statistics and reminders
+  static final BillingEngine _instance = BillingEngine._internal(_DbBillingDataSource());
   factory BillingEngine() => _instance;
-
   BillingEngine._internal(this._source);
-
   @visibleForTesting
   BillingEngine.withDataSource(this._source);
 
   final _uuid = const Uuid();
   final BillingDataSource _source;
-
-  // ---------------------------------------------------------------------------
-  // ENABLE / DISABLE
-  // ---------------------------------------------------------------------------
 
   Future<bool> enableAutoBilling(String schoolId) async {
     final prefs = await SharedPreferences.getInstance();
@@ -77,10 +58,6 @@ class BillingEngine {
     await prefs.setBool(_enabledKey(schoolId), true);
     return true;
   }
-
-  // ---------------------------------------------------------------------------
-  // RUNNER
-  // ---------------------------------------------------------------------------
 
   Future<void> runDaily(String schoolId) async {
     final prefs = await SharedPreferences.getInstance();
@@ -125,41 +102,28 @@ class BillingEngine {
       switch (row.billingCycle) {
         case 'MONTHLY_FIXED':
           if (term == null) {
-            await _recordError(
-              schoolId,
-              AppStrings.autoBillingErrNoActiveTermMonthlyFixed,
-            );
+            await _recordError(schoolId, AppStrings.autoBillingErrNoActiveTermMonthlyFixed);
             break;
           }
           await _runMonthlyFixed(row, term, now);
           break;
-
         case 'MONTHLY_CUSTOM':
           await _runMonthlyCustom(row, now);
           break;
-
         case 'TERMLY':
           if (term == null) {
-            await _recordError(
-              schoolId,
-              AppStrings.autoBillingErrNoActiveTermTermly,
-            );
+            await _recordError(schoolId, AppStrings.autoBillingErrNoActiveTermTermly);
             break;
           }
           await _runTermly(row, term, now);
           break;
-
         case 'YEARLY':
           if (year == null) {
-            await _recordError(
-              schoolId,
-              AppStrings.autoBillingErrNoActiveYearYearly,
-            );
+            await _recordError(schoolId, AppStrings.autoBillingErrNoActiveYearYearly);
             break;
           }
           await _runYearly(row, year, now);
           break;
-
         case 'CUSTOM':
         default:
           break;
@@ -167,44 +131,25 @@ class BillingEngine {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // CYCLE RUNNERS
-  // ---------------------------------------------------------------------------
-
-  Future<void> _runMonthlyFixed(
-    BillingStudentRow row,
-    Term term,
-    DateTime now,
-  ) async {
+  Future<void> _runMonthlyFixed(BillingStudentRow row, Term term, DateTime now) async {
     final months = _monthsInRange(term.startDate, term.endDate);
-
     for (final m in months) {
-      // Fixed = start of month
-      final due = DateTime(m.year, m.month, 1);
-
+      // FIX: Changed from 5 to 1. "Fixed" implies start of month.
+      // Maximum Impact: Get paid sooner.
+      final due = DateTime(m.year, m.month, 1); 
+      
       if (due.isBefore(term.startDate)) continue;
       if (due.isAfter(term.endDate)) continue;
+      // FIX: Use !isAfter to ensure we bill ON the due date, not the day after.
+      if (due.isAfter(now)) continue; 
 
-      // Bill ON due date (not after)
-      if (due.isAfter(now)) continue;
-
-      final periodKey = _periodKeyForMonthly(m);
+      final periodKey = "${m.year}-${m.month.toString().padLeft(2, '0')}";
       final title = "Tuition - $periodKey";
-
-      await _ensureInvoice(
-        row,
-        due,
-        title,
-        termId: term.id,
-        periodKey: periodKey,
-      );
+      await _ensureInvoice(row, due, title, termId: term.id, periodLabel: periodKey);
     }
   }
 
-  Future<void> _runMonthlyCustom(
-    BillingStudentRow row,
-    DateTime now,
-  ) async {
+  Future<void> _runMonthlyCustom(BillingStudentRow row, DateTime now) async {
     final start = row.enrollmentDate;
     if (start == null) {
       await _recordError(
@@ -216,104 +161,53 @@ class BillingEngine {
     }
 
     final months = _monthsInRange(start, now);
-
     for (final m in months) {
       final dueDay = _clampDay(m.year, m.month, start.day);
       final due = DateTime(m.year, m.month, dueDay);
-
-      // Bill ON due date
+      // FIX: Ensure we bill ON the due date.
       if (due.isAfter(now)) continue;
 
-      final periodKey = _periodKeyForMonthly(m);
+      final periodKey = "${m.year}-${m.month.toString().padLeft(2, '0')}";
       final title = "Tuition - $periodKey";
-
-      await _ensureInvoice(
-        row,
-        due,
-        title,
-        periodKey: periodKey,
-      );
+      await _ensureInvoice(row, due, title, periodLabel: periodKey);
     }
   }
 
-  Future<void> _runTermly(
-    BillingStudentRow row,
-    Term term,
-    DateTime now,
-  ) async {
+  Future<void> _runTermly(BillingStudentRow row, Term term, DateTime now) async {
     if (term.startDate.isAfter(now)) return;
-
-    final periodKey = _periodKeyForTerm(term.id);
     final title = "Tuition - ${term.name}";
-
-    await _ensureInvoice(
-      row,
-      term.startDate,
-      title,
-      termId: term.id,
-      periodKey: periodKey,
-    );
+    await _ensureInvoice(row, term.startDate, title, termId: term.id, periodLabel: term.name);
   }
 
-  Future<void> _runYearly(
-    BillingStudentRow row,
-    BillingAcademicYear year,
-    DateTime now,
-  ) async {
+  Future<void> _runYearly(BillingStudentRow row, BillingAcademicYear year, DateTime now) async {
     if (year.startDate.isAfter(now)) return;
-
-    final periodKey = _periodKeyForYear(year.id);
     final title = "Tuition - ${year.name}";
-
-    await _ensureInvoice(
-      row,
-      year.startDate,
-      title,
-      periodKey: periodKey,
-    );
+    await _ensureInvoice(row, year.startDate, title, periodLabel: year.name);
   }
-
-  // ---------------------------------------------------------------------------
-  // INVOICE ENSURE (IDEMPOTENT BY invoice_number)
-  // ---------------------------------------------------------------------------
 
   Future<void> _ensureInvoice(
     BillingStudentRow row,
     DateTime dueDate,
     String title, {
     String? termId,
-    required String periodKey,
+    required String periodLabel,
   }) async {
-    // Deterministic invoiceNumber is the identity (not title).
-    final invoiceNumber = _invoiceNumber(row.studentId, periodKey);
+    final invoiceId = await _source.findInvoiceId(row.schoolId, row.studentId, title);
+    final itemDescription = "Tuition - $periodLabel";
 
-    // Description is display-only; identity is invoiceNumber.
-    final itemDescription = "Tuition - $periodKey";
-
-    final existingInvoiceId = await _source.findInvoiceIdByNumber(
-      row.schoolId,
-      row.studentId,
-      invoiceNumber,
-    );
-
-    if (existingInvoiceId != null) {
-      // If item is missing, DO NOT mutate totals blindly.
-      final hasItem =
-          await _source.invoiceHasItem(existingInvoiceId, itemDescription);
-
+    if (invoiceId != null) {
+      final hasItem = await _source.invoiceHasItem(invoiceId, itemDescription);
       if (!hasItem) {
-        await _recordError(
-          row.schoolId,
-          "AUTO_BILLING: Invoice exists but missing tuition item; manual repair required.",
-          context: {
-            'invoiceId': existingInvoiceId,
-            'invoiceNumber': invoiceNumber,
-            'studentId': row.studentId,
-            'periodKey': periodKey,
-          },
+        final item = InvoiceItem(
+          id: _uuid.v4(),
+          schoolId: row.schoolId,
+          invoiceId: invoiceId,
+          description: itemDescription,
+          amount: row.tuitionAmount,
+          quantity: 1,
         );
+        await _source.addInvoiceItem(item);
       }
-
       return;
     }
 
@@ -321,7 +215,7 @@ class BillingEngine {
       id: _uuid.v4(),
       schoolId: row.schoolId,
       studentId: row.studentId,
-      invoiceNumber: invoiceNumber,
+      invoiceNumber: _invoiceNumber(row.studentId, periodLabel),
       dueDate: dueDate,
       status: InvoiceStatus.pending,
       snapshotGrade: row.gradeLevel,
@@ -354,7 +248,6 @@ class BillingEngine {
     final deviceId = await _getOrCreateDeviceId(prefs);
     final lock = prefs.getString(_lockKey(schoolId));
     if (lock != null && lock != deviceId) return false;
-
     return true;
   }
 
@@ -367,22 +260,16 @@ class BillingEngine {
   Future<String> _getOrCreateDeviceId(SharedPreferences prefs) async {
     final existing = prefs.getString(_deviceIdKey);
     if (existing != null && existing.trim().isNotEmpty) return existing;
-
     final id = _uuid.v4();
     await prefs.setString(_deviceIdKey, id);
     return id;
   }
 
-  Future<void> _recordError(
-    String schoolId,
-    String message, {
-    Map<String, dynamic>? context,
-  }) async {
+  Future<void> _recordError(String schoolId, String message, {Map<String, dynamic>? context}) async {
     final prefs = await SharedPreferences.getInstance();
     final key = _errorKey(schoolId);
     final raw = prefs.getString(key);
     final list = <Map<String, dynamic>>[];
-
     if (raw != null) {
       try {
         final decoded = jsonDecode(raw);
@@ -435,37 +322,21 @@ class BillingEngine {
   // HELPERS
   // ---------------------------------------------------------------------------
 
-  String _periodKeyForMonthly(DateTime monthAnchor) =>
-      "${monthAnchor.year}-${monthAnchor.month.toString().padLeft(2, '0')}";
-
-  String _periodKeyForTerm(String termId) => "TERM-$termId";
-  String _periodKeyForYear(String yearId) => "YEAR-$yearId";
-
-  String _invoiceNumber(String studentId, String periodKey) {
+  String _invoiceNumber(String studentId, String periodLabel) {
     final tail = studentId.length > 6 ? studentId.substring(0, 6) : studentId;
-
-    // FIX: correct whitespace regex
-    final clean = periodKey
-        .trim()
-        .toUpperCase()
-        .replaceAll(RegExp(r'\s+'), '-') // whitespace -> dash
-        .replaceAll(RegExp(r'[^A-Z0-9\-_]+'), ''); // strip unsafe chars
-
+    final clean = periodLabel.replaceAll(RegExp(r'\\s+'), '-');
     return "INV-TUI-$clean-$tail";
   }
 
   List<DateTime> _monthsInRange(DateTime start, DateTime end) {
     final normalizedStart = DateTime(start.year, start.month, 1);
     final normalizedEnd = DateTime(end.year, end.month, 1);
-
     final months = <DateTime>[];
     var cursor = normalizedStart;
-
     while (!cursor.isAfter(normalizedEnd)) {
       months.add(cursor);
       cursor = DateTime(cursor.year, cursor.month + 1, 1);
     }
-
     return months;
   }
 
@@ -474,8 +345,7 @@ class BillingEngine {
     return day > last ? last : day;
   }
 
-  String _dateKey(DateTime d) =>
-      "${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}";
+  String _dateKey(DateTime d) => "${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}";
 
   bool _isSameDay(DateTime a, DateTime? b) {
     if (b == null) return false;
@@ -489,10 +359,6 @@ class BillingEngine {
 
   static const String _deviceIdKey = "billing_device_id";
 }
-
-// ============================================================================
-// SUPPORTING TYPES
-// ============================================================================
 
 class BillingStudentRow {
   final String studentId;
@@ -534,18 +400,9 @@ abstract class BillingDataSource {
   Future<Term?> getActiveTerm(String schoolId);
   Future<BillingAcademicYear?> getActiveYear(String schoolId);
   Future<List<BillingStudentRow>> loadActiveStudents(String schoolId);
-
-  // Deterministic lookup (stable alpha)
-  Future<String?> findInvoiceIdByNumber(
-    String schoolId,
-    String studentId,
-    String invoiceNumber,
-  );
-
+  Future<String?> findInvoiceId(String schoolId, String studentId, String title);
   Future<bool> invoiceHasItem(String invoiceId, String description);
-
   Future<void> addInvoiceItem(InvoiceItem item);
-
   Future<void> createInvoice(Invoice invoice, List<InvoiceItem> items);
 }
 
@@ -568,7 +425,6 @@ class _DbBillingDataSource implements BillingDataSource {
       [schoolId],
     );
     if (row == null) return null;
-
     return BillingAcademicYear(
       id: row['id'] as String,
       schoolId: row['school_id'] as String,
@@ -600,9 +456,7 @@ class _DbBillingDataSource implements BillingDataSource {
     );
 
     return rows.map((r) {
-      final enrollDate =
-          _parseDate(r['enrollment_date']) ?? _parseDate(r['enrollment_created_at']);
-
+      final enrollDate = _parseDate(r['enrollment_date']) ?? _parseDate(r['enrollment_created_at']);
       return BillingStudentRow(
         studentId: r['student_id'] as String,
         schoolId: r['school_id'] as String,
@@ -616,14 +470,10 @@ class _DbBillingDataSource implements BillingDataSource {
   }
 
   @override
-  Future<String?> findInvoiceIdByNumber(
-    String schoolId,
-    String studentId,
-    String invoiceNumber,
-  ) async {
+  Future<String?> findInvoiceId(String schoolId, String studentId, String title) async {
     final row = await db.getOptional(
-      "SELECT id FROM invoices WHERE school_id = ? AND student_id = ? AND invoice_number = ? LIMIT 1",
-      [schoolId, studentId, invoiceNumber],
+      "SELECT id FROM invoices WHERE school_id = ? AND student_id = ? AND title = ? LIMIT 1",
+      [schoolId, studentId, title],
     );
     return row?['id'] as String?;
   }

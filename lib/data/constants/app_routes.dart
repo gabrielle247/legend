@@ -36,4 +36,5 @@ class AppRoutes {
 
   // Settings children
   static const contactDev = 'contact-dev';
+  static const academicPeriods = 'academic-periods';
 }

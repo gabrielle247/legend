@@ -249,6 +249,11 @@ class LegendRouter {
                     parentNavigatorKey: _rootNavigatorKey,
                     builder: (context, state) => const ContactDevScreen(),
                   ),
+                  GoRoute(
+                    path: AppRoutes.academicPeriods,
+                    parentNavigatorKey: _rootNavigatorKey,
+                    builder: (context, state) => const AcademicPeriodsScreen(),
+                  ),
                 ],
               ),
             ],

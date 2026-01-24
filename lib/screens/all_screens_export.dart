@@ -21,4 +21,5 @@ export 'package:legend/screens/students/student_logs_screen.dart';
 export 'package:legend/screens/students/student_invoices_screen.dart';
 export 'package:legend/screens/students/view_student_screen.dart';
 export 'package:legend/screens/settings/contact_dev_screen.dart';
+export 'package:legend/screens/settings/academic_periods_screen.dart';
 export 'package:legend/screens/settings/tos_screen.dart';

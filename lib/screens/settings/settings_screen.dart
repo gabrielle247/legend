@@ -157,6 +157,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 24),
 
                 _buildSettingsGroup(
+                  title: "Academic",
+                  children: [
+                    _buildTile(
+                      icon: Icons.calendar_month_outlined,
+                      iconColor: AppColors.primaryBlue,
+                      title: "Academic Periods",
+                      subtitle: "Manage academic years and terms",
+                      onTap: () => context.push('${AppRoutes.settings}/${AppRoutes.academicPeriods}'),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 24),
+
+                _buildSettingsGroup(
                   title: AppStrings.secSupport,
                   children: [
                     _buildTile(

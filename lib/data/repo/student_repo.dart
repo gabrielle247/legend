@@ -23,7 +23,7 @@ class StudentRepository {
         [schoolId],
       );
       if (((yearResult['count'] as num?)?.toInt() ?? 0) == 0) {
-        return "No Active Academic Year found. Please go to Settings > Academic Year.";
+        return "No Active Academic Year found. Please go to Settings > Academic Periods.";
       }
 
       final classResult = await _db.get(
@@ -32,6 +32,14 @@ class StudentRepository {
       );
       if (((classResult['count'] as num?)?.toInt() ?? 0) == 0) {
         return "No Classes defined. Please go to Settings > Classes.";
+      }
+
+      final termResult = await _db.get(
+        "SELECT count(*) as count FROM terms WHERE school_id = ? AND is_active = 1",
+        [schoolId],
+      );
+      if (((termResult['count'] as num?)?.toInt() ?? 0) == 0) {
+        return "No Active Term found. Please go to Settings > Academic Periods.";
       }
 
       return null;
@@ -182,7 +190,6 @@ class StudentRepository {
     required double tuitionAmount,
     required double initialPayment,
     required String paymentMethod,
-    required bool generateInvoiceNow,
   }) async {
     debugPrint("🚀 Starting Atomic Registration & Billing...");
 
@@ -196,15 +203,14 @@ class StudentRepository {
     if (ip < 0) {
       throw StudentException("Initial Payment cannot be negative.");
     }
-    final projectedInvoice = generateInvoiceNow ? tuitionAmount : 0.0;
-    if (ip > 0 && ob == 0 && projectedInvoice <= 0) {
+    if (ob == 0 && ip > 0) {
       throw StudentException(
-        "Initial Payment requires an Opening Balance or a first invoice. Set Opening Balance or enable first invoice.",
+        "Initial Payment requires an Opening Balance invoice. Set Opening Balance > 0 or record payment later.",
       );
     }
-    if (ip > (ob + projectedInvoice)) {
+    if (ob > 0 && ip > ob) {
       throw StudentException(
-        "Initial Payment cannot exceed Opening Balance plus the first invoice.",
+        "Initial Payment cannot exceed the Opening Balance.",
       );
     }
     if (subjects.isEmpty) {
@@ -233,10 +239,9 @@ class StudentRepository {
       );
       final String? activeTermId = activeTermRow?['id'] as String?;
 
-      if ((ob > 0 || (generateInvoiceNow && tuitionAmount > 0)) &&
-          activeTermId == null) {
+      if (ob > 0 && activeTermId == null) {
         throw StudentException(
-          "Cannot create invoice: No Active Term found. Go to Settings > Terms.",
+          "Cannot create opening balance: No Active Term found. Go to Settings > Terms.",
         );
       }
 
@@ -322,7 +327,6 @@ class StudentRepository {
       );
 
       String? openingInvoiceId;
-      String? tuitionInvoiceId;
 
       // 6) OPENING BALANCE (DEBIT -> INVOICE + LEDGER + STUDENT FEES_OWED)
       if (ob > 0) {
@@ -402,80 +406,7 @@ class StudentRepository {
         );
       }
 
-      // 7) FIRST TUITION INVOICE (OPTIONAL)
-      if (generateInvoiceNow && tuitionAmount > 0) {
-        tuitionInvoiceId = _uuid.v4();
-        const tuitionStatus = 'PENDING';
-
-        final invoiceNum =
-            'INV-${now.year}-${now.month.toString().padLeft(2, '0')}-${now.millisecondsSinceEpoch.toString().substring(6)}';
-
-        await tx.execute(
-          """
-        INSERT INTO invoices (
-          id, school_id, student_id, term_id, invoice_number,
-          total_amount, paid_amount, status, due_date, title, created_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
-        """,
-          [
-            tuitionInvoiceId,
-            schoolId,
-            studentId,
-            activeTermId,
-            invoiceNum,
-            tuitionAmount,
-            tuitionStatus,
-            nowIso,
-            "Tuition Invoice",
-            nowIso,
-          ],
-        );
-
-        await tx.execute(
-          """
-        INSERT INTO invoice_items (
-          id, school_id, invoice_id, fee_structure_id,
-          description, amount, quantity, created_at
-        )
-        VALUES (?, ?, ?, NULL, ?, ?, 1, ?)
-        """,
-          [
-            _uuid.v4(),
-            schoolId,
-            tuitionInvoiceId,
-            "Tuition Fee",
-            tuitionAmount,
-            nowIso,
-          ],
-        );
-
-        await tx.execute(
-          """
-        INSERT INTO ledger (
-          id, school_id, student_id, type, category, amount,
-          invoice_id, payment_id, description, occurred_at
-        )
-        VALUES (?, ?, ?, 'DEBIT', 'INVOICE', ?, ?, NULL, ?, ?)
-        """,
-          [
-            _uuid.v4(),
-            schoolId,
-            studentId,
-            tuitionAmount,
-            tuitionInvoiceId,
-            "Tuition Invoice Raised",
-            nowIso,
-          ],
-        );
-
-        await tx.execute(
-          "UPDATE students SET fees_owed = COALESCE(fees_owed, 0) + ? WHERE id = ?",
-          [tuitionAmount, studentId],
-        );
-      }
-
-      // 8) INITIAL PAYMENT (CREDIT -> PAYMENT + LEDGER + APPLY TO INVOICES)
+      // 7) INITIAL PAYMENT (CREDIT -> PAYMENT + LEDGER + APPLY TO OPENING INVOICE)
       if (ip > 0) {
         final paymentId = _uuid.v4();
         final methodDb = _normPaymentMethod(paymentMethod);
@@ -490,36 +421,32 @@ class StudentRepository {
           [paymentId, schoolId, studentId, ip, methodDb, nowIso],
         );
 
-        final appliedToOpening = (openingInvoiceId != null)
-            ? (ip > ob ? ob : ip)
-            : 0.0;
-        final remaining = ip - appliedToOpening;
-        final appliedToTuition = (tuitionInvoiceId != null && remaining > 0)
-            ? remaining
-            : 0.0;
+        // Link this credit to the opening invoice via ledger if we have one
+        await tx.execute(
+          """
+        INSERT INTO ledger (
+          id, school_id, student_id, type, category, amount,
+          invoice_id, payment_id, description, occurred_at
+        )
+        VALUES (?, ?, ?, 'CREDIT', 'PAYMENT', ?, ?, ?, ?, ?)
+        """,
+          [
+            _uuid.v4(),
+            schoolId,
+            studentId,
+            ip,
+            openingInvoiceId, // may be null (but we guard against ip>0 when ob==0)
+            paymentId,
+            "Initial Deposit via $methodDb",
+            nowIso,
+          ],
+        );
 
-        if (appliedToOpening > 0) {
-          await tx.execute(
-            """
-          INSERT INTO ledger (
-            id, school_id, student_id, type, category, amount,
-            invoice_id, payment_id, description, occurred_at
-          )
-          VALUES (?, ?, ?, 'CREDIT', 'PAYMENT', ?, ?, ?, ?, ?)
-          """,
-            [
-              _uuid.v4(),
-              schoolId,
-              studentId,
-              appliedToOpening,
-              openingInvoiceId,
-              paymentId,
-              "Initial Deposit via $methodDb (Opening Balance)",
-              nowIso,
-            ],
-          );
+        // Apply to invoice: paid_amount + status
+        if (openingInvoiceId != null) {
+          final newPaid = ip;
+          final newStatus = (newPaid >= ob) ? 'PAID' : 'PARTIAL';
 
-          final newStatus = (appliedToOpening >= ob) ? 'PAID' : 'PARTIAL';
           await tx.execute(
             """
           UPDATE invoices
@@ -527,44 +454,11 @@ class StudentRepository {
               status = ?
           WHERE id = ?
           """,
-            [appliedToOpening, newStatus, openingInvoiceId],
+            [ip, newStatus, openingInvoiceId],
           );
         }
 
-        if (appliedToTuition > 0) {
-          await tx.execute(
-            """
-          INSERT INTO ledger (
-            id, school_id, student_id, type, category, amount,
-            invoice_id, payment_id, description, occurred_at
-          )
-          VALUES (?, ?, ?, 'CREDIT', 'PAYMENT', ?, ?, ?, ?, ?)
-          """,
-            [
-              _uuid.v4(),
-              schoolId,
-              studentId,
-              appliedToTuition,
-              tuitionInvoiceId,
-              paymentId,
-              "Initial Deposit via $methodDb (Tuition Invoice)",
-              nowIso,
-            ],
-          );
-
-          final newStatus =
-              (appliedToTuition >= tuitionAmount) ? 'PAID' : 'PARTIAL';
-          await tx.execute(
-            """
-          UPDATE invoices
-          SET paid_amount = COALESCE(paid_amount, 0) + ?,
-              status = ?
-          WHERE id = ?
-          """,
-            [appliedToTuition, newStatus, tuitionInvoiceId],
-          );
-        }
-
+        // Reduce fees_owed (never negative)
         await tx.execute(
           """
         UPDATE students

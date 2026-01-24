@@ -54,6 +54,7 @@ export 'package:legend/data/models/all_models.dart';
 // -----------------------------------------------------------------------------
 export 'package:legend/data/repo/auth/auth.dart';
 export 'package:legend/data/repo/auth/school_repo.dart';
+export 'package:legend/data/repo/academic_period_repo.dart';
 export 'package:legend/data/repo/dashboard_repo.dart';
 export 'package:legend/data/repo/financial_repo.dart';
 export 'package:legend/data/repo/student_repo.dart';
@@ -71,6 +72,7 @@ export 'package:legend/data/services/powersync/powersync_factory.dart';
 // 9. VIEW MODELS
 // -----------------------------------------------------------------------------
 export 'package:legend/data/vmodels/add_student_view_model.dart';
+export 'package:legend/data/vmodels/academic_periods_view_model.dart';
 export 'package:legend/data/vmodels/dashboard_vmodel.dart';
 export 'package:legend/data/vmodels/finance_vmodel.dart';
 export 'package:legend/data/vmodels/settings_vmodel.dart';

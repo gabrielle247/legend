@@ -112,9 +112,6 @@ class AddStudentViewModel extends ChangeNotifier {
   double get initialPay => double.tryParse(initialPaymentCtrl.text) ?? 0.0;
   double get netOutstanding => totalDebt - initialPay;
   double get tuitionAmount => double.tryParse(tuitionAmountCtrl.text) ?? 0.0;
-  double get projectedFirstInvoice => _generateInvoiceNow ? tuitionAmount : 0.0;
-  double get projectedTotalDue => totalDebt + projectedFirstInvoice;
-  double get projectedNetDue => projectedTotalDue - initialPay;
 
   // DATA SOURCES
   List<String> get grades => _gradeNames;
@@ -222,7 +219,6 @@ class AddStudentViewModel extends ChangeNotifier {
         tuitionAmount: tuitionAmount,
         initialPayment: initialPay,
         paymentMethod: _selectedPaymentMethod,
-        generateInvoiceNow: _generateInvoiceNow,
       );
 
       return true;
